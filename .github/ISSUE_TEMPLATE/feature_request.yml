@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [the roadmap](../blob/main/docs/ROADMAP.md) first — it
+        lists what is planned, and what is deliberately not.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: The situation you are in, not the solution you have in mind.
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What did you have in mind?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you have tried instead?

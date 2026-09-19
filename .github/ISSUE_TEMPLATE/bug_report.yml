@@ -1,0 +1,56 @@
+name: Bug report
+description: Something is not working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do **not** report security issues here — see
+        [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected, and what happened instead.
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings → Advanced → About
+    validations: { required: true }
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and desktop
+      placeholder: Ubuntu 24.04, GNOME, Wayland
+    validations: { required: true }
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options: [.deb, AppImage, built from source]
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        From ~/.local/state/openclaude/logs, or run from a terminal.
+        Please check there is nothing private in them first.
+      render: shell
+  - type: checkboxes
+    id: blank
+    attributes:
+      label: If the window was blank
+      options:
+        - label: I tried `WEBKIT_DISABLE_COMPOSITING_MODE=1` and it did not help

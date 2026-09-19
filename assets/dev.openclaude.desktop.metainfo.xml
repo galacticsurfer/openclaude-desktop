@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.openclaude.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>OpenClaude Desktop</name>
+  <summary>Unofficial open-source desktop client for Claude</summary>
+  <description>
+    <p>
+      OpenClaude Desktop is an independent, open-source desktop client for
+      Claude on Linux. It talks to the Anthropic API directly with your own
+      API key, keeps every conversation in a local SQLite database, and stores
+      your key in the system keyring.
+    </p>
+    <p>
+      This project is not affiliated with, endorsed by, or sponsored by
+      Anthropic. "Claude" is a trademark of Anthropic, PBC and is used here
+      only to describe what the client connects to.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Streaming replies with Markdown and syntax highlighting</li>
+      <li>Conversations persisted locally and restored after a restart</li>
+      <li>Instant full-text search across your whole history</li>
+      <li>File, image and PDF attachments by drag and drop</li>
+      <li>Light, dark and system themes</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">dev.openclaude.desktop.desktop</launchable>
+  <url type="homepage">https://github.com/openclaude/openclaude-desktop</url>
+  <url type="bugtracker">https://github.com/openclaude/openclaude-desktop/issues</url>
+  <developer id="dev.openclaude">
+    <name>OpenClaude Desktop contributors</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-09-20">
+      <description><p>First public release.</p></description>
+    </release>
+  </releases>
+</component>
