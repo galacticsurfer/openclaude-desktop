@@ -17,8 +17,10 @@ import { useHotkeys, type Hotkey } from '@/hooks/useHotkeys';
 import { cn } from '@/lib/cn';
 
 export function AppShell() {
-  const { overlay, openOverlay, closeOverlay, toggleSidebar, sidebarCollapsed, setSidebarCollapsed } =
-    useUIStore();
+  const {
+    overlay, openOverlay, closeOverlay, toggleSidebar,
+    sidebarCollapsed, setSidebarCollapsed, setDragActive,
+  } = useUIStore();
   const { newConversation, stop, isGenerating, stagePaths, messages } = useConversationStore();
   const { settings, set } = useSettingsStore();
 
@@ -37,11 +39,13 @@ export function AppShell() {
   }, [sidebarCollapsed, settings, set]);
 
   /*
-   * Native file drops.
+   * Native file drops — the single source of truth for dragging.
    *
-   * The DOM `drop` event in a webview exposes File objects without paths, so
-   * non-image files cannot be read from it. Tauri's own drag-drop event does
-   * carry real paths — that is the route used for source files and PDFs.
+   * Tauri intercepts file drops at the webview level (`dragDropEnabled`), and
+   * only this event carries real filesystem paths; the DOM `drop` event gets
+   * `File` objects with no path, so non-image files cannot be read from it.
+   * Handling drops in both places would attach a dropped image twice, so the
+   * composer only renders the highlight and takes no part in the drop itself.
    */
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -49,23 +53,29 @@ export function AppShell() {
 
     void getCurrentWebview()
       .onDragDropEvent((event) => {
-        if (event.payload.type !== 'drop') return;
-        const paths = event.payload.paths;
-        if (paths.length > 0) void stagePaths(paths);
+        const { payload } = event;
+        if (payload.type === 'enter' || payload.type === 'over') {
+          setDragActive(true);
+        } else if (payload.type === 'leave') {
+          setDragActive(false);
+        } else if (payload.type === 'drop') {
+          setDragActive(false);
+          if (payload.paths.length > 0) void stagePaths(payload.paths);
+        }
       })
       .then((un) => {
         if (disposed) un();
         else unlisten = un;
       })
       .catch(() => {
-        /* drag-drop unavailable; the picker still works */
+        /* drag-drop unavailable; the file picker still works */
       });
 
     return () => {
       disposed = true;
       unlisten?.();
     };
-  }, [stagePaths]);
+  }, [stagePaths, setDragActive]);
 
   const overlayOpen = overlay.kind !== 'none';
 

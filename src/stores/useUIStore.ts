@@ -34,6 +34,8 @@ interface UIState {
   /** Which project the sidebar is filtered to, if any. */
   activeProjectId: string | null;
   scope: 'active' | 'archived' | 'trash';
+  /** A file drag is in progress over the window. */
+  dragActive: boolean;
 
   toggleSidebar: () => void;
   setSidebarCollapsed: (v: boolean) => void;
@@ -44,6 +46,7 @@ interface UIState {
   dismissToast: (id: number) => void;
   setActiveProject: (id: string | null) => void;
   setScope: (s: UIState['scope']) => void;
+  setDragActive: (v: boolean) => void;
 }
 
 let toastSeq = 0;
@@ -54,6 +57,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   toasts: [],
   activeProjectId: null,
   scope: 'active',
+  dragActive: false,
 
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
@@ -75,4 +79,5 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setActiveProject: (activeProjectId) => set({ activeProjectId }),
   setScope: (scope) => set({ scope }),
+  setDragActive: (dragActive) => set({ dragActive }),
 }));

@@ -16,8 +16,11 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   const toast = useUIStore((s) => s.toast);
 
   const [value, setValue] = useState('');
-  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Dragging is reported by Tauri's native drag-drop event (see AppShell);
+  // the DOM equivalent has no file paths, and handling both would attach a
+  // dropped image twice.
+  const dragging = useUIStore((s) => s.dragActive);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const generating = isGenerating();
 
@@ -100,33 +103,7 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   const canSend = (value.trim() !== '' || pendingAttachments.length > 0) && !generating && !busy;
 
   return (
-    <div
-      className="border-t border-line bg-canvas px-4 pb-4 pt-3"
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={(e) => {
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-        setDragging(false);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragging(false);
-        // The webview exposes only File objects here, not paths. Images go
-        // through the bytes path; anything else is routed via the Tauri
-        // file-drop event handled in AppShell, which does give real paths.
-        const files = [...e.dataTransfer.files];
-        void Promise.all(
-          files
-            .filter((f) => f.type.startsWith('image/'))
-            .map(async (f) => {
-              const buf = await f.arrayBuffer();
-              await stageImage(f.name, f.type, bytesToBase64(new Uint8Array(buf)));
-            }),
-        );
-      }}
-    >
+    <div className="border-t border-line bg-canvas px-4 pb-4 pt-3">
       <div className="mx-auto w-full max-w-3xl">
         {pendingAttachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
