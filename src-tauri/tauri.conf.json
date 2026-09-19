@@ -65,12 +65,8 @@
     "publisher": "OpenClaude Desktop contributors",
     "linux": {
       "deb": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libgtk-3-0",
-          "libayatana-appindicator3-1"
-        ],
         "section": "utils",
+        "desktopTemplate": "../assets/openclaude.desktop.template",
         "priority": "optional",
         "files": {
           "/usr/share/metainfo/dev.openclaude.desktop.metainfo.xml": "../assets/dev.openclaude.desktop.metainfo.xml"

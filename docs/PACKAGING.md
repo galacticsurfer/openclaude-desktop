@@ -44,6 +44,14 @@ on Ubuntu 24.04 (which dropped `libfuse2`) the bundler fails with
 APPIMAGE_EXTRACT_AND_RUN=1 npx tauri build --bundles appimage
 ```
 
+**The AppImage's GTK plugin reads `pkg-config`.** `linuxdeploy-plugin-gtk`
+locates GTK's runtime modules through `pkg-config --variable=libdir
+gtk+-3.0`. If you build against a relocated sysroot rather than the
+distribution's own `-dev` packages, libdir points somewhere without those
+modules and the plugin fails (or, worse, copies them to a path that will not
+exist on the user's machine). Install the `-dev` packages normally —
+`scripts/setup-deps.sh` — and this does not arise.
+
 ## Installing
 
 ```bash

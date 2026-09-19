@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name={{name}}
+GenericName=AI Assistant
+Comment={{comment}}
+Exec={{exec}} {{exec_arg}}
+Icon={{icon}}
+Terminal=false
+Categories={{categories}}
+Keywords=Claude;AI;Assistant;Chat;LLM;Anthropic;
+StartupNotify=true
+StartupWMClass={{exec}}

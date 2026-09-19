@@ -26,7 +26,8 @@
       <li>Light, dark and system themes</li>
     </ul>
   </description>
-  <launchable type="desktop-id">dev.openclaude.desktop.desktop</launchable>
+  <!-- Must match the file Tauri installs, which is named after productName. -->
+  <launchable type="desktop-id">OpenClaude Desktop.desktop</launchable>
   <url type="homepage">https://github.com/openclaude/openclaude-desktop</url>
   <url type="bugtracker">https://github.com/openclaude/openclaude-desktop/issues</url>
   <developer id="dev.openclaude">

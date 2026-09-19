@@ -163,8 +163,8 @@ Details, including the known limitations, are in
 ## Building from source
 
 ```bash
-git clone https://github.com/openclaude/openclaude-desktop
-cd openclaude-desktop
+git clone https://github.com/openclaude/openclaude
+cd openclaude
 ./scripts/setup-deps.sh      # WebKitGTK toolchain (needs sudo)
 npm install
 npm run app:dev              # development, with hot reload
@@ -180,7 +180,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 drivers:
 
 ```bash
-WEBKIT_DISABLE_COMPOSITING_MODE=1 openclaude-desktop
+WEBKIT_DISABLE_COMPOSITING_MODE=1 openclaude
 ```
 
 **"Key not saved" in the sidebar.** No Secret Service is reachable, so the key
