@@ -6,6 +6,7 @@ export type Overlay =
   | { kind: 'commandPalette' }
   | { kind: 'settings'; section?: string }
   | { kind: 'shortcuts' }
+  | { kind: 'prompts' }
   | { kind: 'newProject' }
   | { kind: 'editProject'; projectId: string }
   | { kind: 'conversationInfo'; conversationId: string }
@@ -41,6 +42,16 @@ interface UIState {
   setSidebarCollapsed: (v: boolean) => void;
   openOverlay: (o: Overlay) => void;
   closeOverlay: () => void;
+  /**
+   * Text an overlay wants dropped into the composer.
+   *
+   * A one-shot handoff rather than a direct call: the composer owns its own
+   * draft state and is not mounted while a modal has focus, so the value is
+   * parked here and claimed on the next render.
+   */
+  composerInsert: string | null;
+  insertIntoComposer: (text: string) => void;
+  claimComposerInsert: () => string | null;
   confirm: (req: ConfirmRequest) => void;
   toast: (kind: Toast['kind'], message: string, action?: Toast['action']) => void;
   dismissToast: (id: number) => void;
@@ -64,6 +75,14 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openOverlay: (overlay) => set({ overlay }),
   closeOverlay: () => set({ overlay: { kind: 'none' } }),
+
+  composerInsert: null,
+  insertIntoComposer: (text) => set({ composerInsert: text }),
+  claimComposerInsert: () => {
+    const text = get().composerInsert;
+    if (text !== null) set({ composerInsert: null });
+    return text;
+  },
 
   confirm: (request) => set({ overlay: { kind: 'confirm', request } }),
 

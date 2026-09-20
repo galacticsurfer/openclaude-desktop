@@ -8,6 +8,7 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { ProjectDialog } from '@/components/common/ProjectDialog';
 import { ConversationInfoDialog } from '@/components/common/ConversationInfoDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PromptLibrary } from '@/components/prompts/PromptLibrary';
 import { ShortcutsDialog } from '@/components/common/ShortcutsDialog';
 import { Toasts } from '@/components/ui/Toasts';
 import { useUIStore } from '@/stores/useUIStore';
@@ -90,6 +91,13 @@ export function AppShell() {
       { key: 'p', ctrl: true, shift: true, allowInInput: true, run: () => openOverlay({ kind: 'commandPalette' }) },
       { key: ',', ctrl: true, allowInInput: true, run: () => openOverlay({ kind: 'settings' }) },
       { key: '/', ctrl: true, allowInInput: true, run: () => openOverlay({ kind: 'shortcuts' }) },
+      {
+        key: 'l',
+        ctrl: true,
+        shift: true,
+        allowInInput: true,
+        run: () => openOverlay({ kind: 'prompts' }),
+      },
       { key: 'b', ctrl: true, allowInInput: true, run: toggleSidebar },
       { key: 'n', ctrl: true, shift: true, allowInInput: true, run: () => openOverlay({ kind: 'newProject' }) },
       {
@@ -158,6 +166,9 @@ export function AppShell() {
       {overlay.kind === 'commandPalette' && <CommandPalette />}
       {overlay.kind === 'settings' && <SettingsDialog section={overlay.section} />}
       {overlay.kind === 'shortcuts' && <ShortcutsDialog />}
+      {overlay.kind === 'prompts' && (
+        <PromptLibrary onInsert={(body) => useUIStore.getState().insertIntoComposer(body)} />
+      )}
       {overlay.kind === 'newProject' && <ProjectDialog />}
       {overlay.kind === 'editProject' && <ProjectDialog projectId={overlay.projectId} />}
       {overlay.kind === 'conversationInfo' && (

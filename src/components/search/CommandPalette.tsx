@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Archive, Download, FolderPlus, Keyboard, MessageSquarePlus, Moon, PanelLeft,
-  RefreshCw, Search, Settings, Sun, Trash2, GitBranch, Monitor,
+  RefreshCw, Search, Settings, Sun, Trash2, GitBranch, Monitor, BookMarked,
 } from 'lucide-react';
 import { useConversationStore } from '@/stores/useConversationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -87,6 +87,13 @@ export function CommandPalette() {
         icon: <Keyboard size={15} />,
         shortcut: 'Ctrl /',
         run: () => openOverlay({ kind: 'shortcuts' }),
+      },
+      {
+        id: 'prompts',
+        label: 'Prompt library',
+        icon: <BookMarked size={15} />,
+        shortcut: 'Ctrl Shift L',
+        run: () => openOverlay({ kind: 'prompts' }),
       },
       {
         id: 'models',

@@ -320,3 +320,59 @@ fn settings_round_trip_and_tolerate_corruption() {
     let n: i64 = repo::settings::get_or(&conn, "claude.maxTokens", 8192);
     assert_eq!(n, 8192);
 }
+
+// --- prompt library -------------------------------------------------------
+
+#[test]
+fn prompts_round_trip_and_order_by_recent_use() {
+    let db = db();
+    let conn = db.conn();
+
+    let a = repo::prompts::create(&conn, "Summarise", "Summarise this: ").unwrap();
+    let b = repo::prompts::create(&conn, "Explain", "Explain simply: ").unwrap();
+    repo::prompts::create(&conn, "Critique", "Critique this: ").unwrap();
+
+    // Never-used prompts sort by name.
+    let names: Vec<String> = repo::prompts::list(&conn)
+        .unwrap()
+        .into_iter()
+        .map(|p| p.title)
+        .collect();
+    assert_eq!(names, vec!["Critique", "Explain", "Summarise"]);
+
+    // Using one brings it to the front. `last_used_at` has millisecond
+    // resolution, so two uses inside the same tick would tie and fall back
+    // to the name — space them, since the order under test is by recency.
+    repo::prompts::mark_used(&conn, &b.id).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    repo::prompts::mark_used(&conn, &a.id).unwrap();
+    let names: Vec<String> = repo::prompts::list(&conn)
+        .unwrap()
+        .into_iter()
+        .map(|p| p.title)
+        .collect();
+    assert_eq!(names[0], "Summarise");
+    assert_eq!(names[1], "Explain");
+    assert_eq!(repo::prompts::get(&conn, &a.id).unwrap().use_count, 1);
+}
+
+#[test]
+fn editing_and_deleting_a_prompt() {
+    let db = db();
+    let conn = db.conn();
+
+    let p = repo::prompts::create(&conn, "Draft", "old").unwrap();
+    let edited = repo::prompts::update(&conn, &p.id, "Draft v2", "new").unwrap();
+    assert_eq!(edited.title, "Draft v2");
+    assert_eq!(edited.body, "new");
+
+    repo::prompts::delete(&conn, &p.id).unwrap();
+    assert!(repo::prompts::get(&conn, &p.id).is_err());
+    assert!(repo::prompts::list(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn editing_a_prompt_that_is_gone_is_an_error_not_a_silent_no_op() {
+    let db = db();
+    assert!(repo::prompts::update(&db.conn(), "nope", "t", "b").is_err());
+}

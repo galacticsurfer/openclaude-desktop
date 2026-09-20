@@ -3,13 +3,13 @@
 mod common;
 
 use common::*;
-use serde_json::json;
 use openclaude_lib::chat::{
     build_messages, clean_generated_title, compose_system, fallback_title, rebuilding_context,
     render_prior_turns,
 };
 use openclaude_lib::db::models::*;
 use openclaude_lib::db::repo;
+use serde_json::json;
 
 fn store() -> std::path::PathBuf {
     std::path::PathBuf::from("/nonexistent-attachment-store")

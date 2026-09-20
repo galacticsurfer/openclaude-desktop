@@ -128,6 +128,16 @@ export interface ModelListResult {
   stale: boolean;
 }
 
+export interface Prompt {
+  id: string;
+  title: string;
+  body: string;
+  useCount: number;
+  lastUsedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SearchHit {
   conversationId: string;
   conversationTitle: string;

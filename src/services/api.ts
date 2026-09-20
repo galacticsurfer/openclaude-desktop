@@ -7,6 +7,7 @@
 
 import { invoke } from './ipc';
 import type {
+  Prompt,
   AddAttachmentsResult,
   AppInfo,
   ClaudeCodeStatus,
@@ -159,6 +160,16 @@ export const updateProject = (id: string, input: ProjectInput) =>
 export const setProjectArchived = (id: string, archived: boolean) =>
   invoke<void>('set_project_archived', { id, archived });
 export const deleteProject = (id: string) => invoke<void>('delete_project', { id });
+
+// --- prompt library -------------------------------------------------------
+
+export const listPrompts = () => invoke<Prompt[]>('list_prompts');
+export const createPrompt = (title: string, body: string) =>
+  invoke<Prompt>('create_prompt', { title, body });
+export const updatePrompt = (id: string, title: string, body: string) =>
+  invoke<Prompt>('update_prompt', { id, title, body });
+export const deletePrompt = (id: string) => invoke<void>('delete_prompt', { id });
+export const markPromptUsed = (id: string) => invoke<void>('mark_prompt_used', { id });
 
 // --- search ---------------------------------------------------------------
 

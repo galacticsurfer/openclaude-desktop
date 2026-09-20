@@ -505,7 +505,9 @@ pub async fn edit_and_resend(
     let assistant_id = db.tx(|tx| {
         let target = repo::messages::get(tx, &message_id)?;
         if target.conversation_id != conversation_id {
-            return Err(AppError::invalid("That message is in another conversation."));
+            return Err(AppError::invalid(
+                "That message is in another conversation.",
+            ));
         }
         if target.role != Role::User {
             return Err(AppError::invalid("Only your own messages can be edited."));

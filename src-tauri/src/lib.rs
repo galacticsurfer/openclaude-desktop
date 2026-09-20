@@ -178,6 +178,11 @@ pub fn run() {
             commands::projects::set_project_archived,
             commands::projects::delete_project,
             // search
+            commands::prompts::list_prompts,
+            commands::prompts::create_prompt,
+            commands::prompts::update_prompt,
+            commands::prompts::delete_prompt,
+            commands::prompts::mark_prompt_used,
             commands::search::search_all,
             commands::search::search_conversation,
             commands::search::rebuild_search_index,

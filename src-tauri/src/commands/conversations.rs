@@ -223,4 +223,3 @@ pub fn write_text_file(path: String, contents: String) -> Result<()> {
 pub fn delete_message(state: State<'_, Arc<AppState>>, id: String) -> Result<()> {
     msg_repo::delete(&state.db.conn(), &id)
 }
-

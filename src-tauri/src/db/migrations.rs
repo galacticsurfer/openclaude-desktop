@@ -24,6 +24,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "thinking_tokens",
         sql: include_str!("../../migrations/002_thinking_tokens.sql"),
     },
+    Migration {
+        version: 3,
+        name: "prompts",
+        sql: include_str!("../../migrations/003_prompts.sql"),
+    },
 ];
 
 pub fn latest_version() -> i64 {

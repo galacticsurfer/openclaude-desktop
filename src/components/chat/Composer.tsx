@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Paperclip, Square } from 'lucide-react';
+import { ArrowUp, BookMarked, Paperclip, Square } from 'lucide-react';
 import { useConversationStore } from '@/stores/useConversationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -28,6 +28,7 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   );
   const sendKey = useSettingsStore((s) => s.settings?.['general.sendKey'] ?? 'enter');
   const toast = useUIStore((s) => s.toast);
+  const openOverlay = useUIStore((s) => s.openOverlay);
 
   const [value, setValue] = useState('');
   const slashCommands = useSettingsStore((s) => s.settings?.['claude.slashCommands'] ?? []);
@@ -53,6 +54,18 @@ export function Composer({ disabled }: { disabled?: boolean }) {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_PX)}px`;
   }, [value]);
+
+  // Claim any text an overlay parked for us — the prompt library, so far.
+  // Appended rather than replacing, so a half-typed message is not lost.
+  const composerInsert = useUIStore((s) => s.composerInsert);
+  const claimComposerInsert = useUIStore((s) => s.claimComposerInsert);
+  useEffect(() => {
+    if (composerInsert === null) return;
+    const text = claimComposerInsert();
+    if (text === null) return;
+    setValue((v) => (v.trim() === '' ? text : `${v.replace(/\s*$/, '')}\n\n${text}`));
+    textareaRef.current?.focus();
+  }, [composerInsert, claimComposerInsert]);
 
   // Focus the composer when the conversation changes.
   useEffect(() => {
@@ -177,6 +190,15 @@ export function Composer({ disabled }: { disabled?: boolean }) {
             className="mb-0.5"
           >
             <Paperclip size={16} />
+          </IconButton>
+
+          <IconButton
+            label="Prompt library (Ctrl Shift L)"
+            onClick={() => openOverlay({ kind: 'prompts' })}
+            disabled={disabled}
+            className="mb-0.5"
+          >
+            <BookMarked size={16} />
           </IconButton>
 
           <textarea

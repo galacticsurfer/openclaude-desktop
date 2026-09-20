@@ -115,6 +115,19 @@ pub struct ConversationSummary {
     pub project_name: Option<String>,
 }
 
+/// A reusable prompt the user has saved.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Prompt {
+    pub id: String,
+    pub title: String,
+    pub body: String,
+    pub use_count: i64,
+    pub last_used_at: Option<Millis>,
+    pub created_at: Millis,
+    pub updated_at: Millis,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
