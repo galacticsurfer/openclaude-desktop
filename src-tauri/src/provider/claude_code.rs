@@ -179,6 +179,8 @@ pub async fn discover_models() -> Option<ModelCatalog> {
         .arg("--output-format")
         .arg("text")
         .arg("--no-session-persistence")
+        .arg("--tools")
+        .arg("")
         .arg("--disallowed-tools")
         .arg(DISALLOWED_TOOLS.join(" "))
         .arg("--strict-mcp-config")
@@ -247,13 +249,23 @@ impl ClaudeCodeProvider {
             // Without this the CLI emits whole messages, not token deltas.
             .arg("--include-partial-messages")
             .arg("--verbose")
+            // Empties the built-in tool set outright. This is the control
+            // that matters: a deny list only denies the tools it was written
+            // against, so a CLI upgrade adding one would silently reopen the
+            // hole. Measured — baseline reports 27 tools, this reports 0.
+            .arg("--tools")
+            .arg("")
+            // Belt and braces behind `--tools`, and still the only way to
+            // name individual MCP tools.
             .arg("--disallowed-tools")
             .arg(DISALLOWED_TOOLS.join(" "))
             // Without this, every configured MCP server's tools stay live —
             // for this user that included one that can delete documents.
             .arg("--strict-mcp-config")
-            // No TTY here, so a permission prompt would hang forever. With
-            // every tool disabled there is nothing left to ask about.
+            // No TTY here, so a permission prompt would hang forever.
+            // `none` denies anything that would have prompted instead.
+            .arg("--permission-prompts")
+            .arg("none")
             .arg("--permission-mode")
             .arg("dontAsk")
             // Structured input, so an attached image or PDF can travel as a
@@ -970,6 +982,29 @@ mod tests {
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
         assert!(args.iter().any(|a| a == "--strict-mcp-config"));
+    }
+
+    #[test]
+    fn the_built_in_tool_set_is_emptied_not_merely_denied() {
+        // A deny list only denies what it was written against; a CLI upgrade
+        // adding a tool would reopen the hole. `--tools ""` closes the set.
+        // Measured against the real CLI: baseline 27 tools, this 0.
+        let p = ClaudeCodeProvider::new(PathBuf::from("/tmp"), SessionRef::New("s".into()));
+        let args: Vec<String> = p
+            .command(&req("hi"))
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let at = args.iter().position(|a| a == "--tools").expect("--tools");
+        assert_eq!(args[at + 1], "");
+        // Anything that would have raised a prompt is denied, not hung:
+        // there is no TTY to answer one.
+        let at = args
+            .iter()
+            .position(|a| a == "--permission-prompts")
+            .expect("--permission-prompts");
+        assert_eq!(args[at + 1], "none");
     }
 
     #[test]
