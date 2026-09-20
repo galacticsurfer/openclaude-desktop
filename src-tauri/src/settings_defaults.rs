@@ -6,6 +6,12 @@ use serde_json::{json, Value};
 pub const DEFAULT_MODEL: &str = "claude.defaultModel";
 pub const AUTO_TITLE: &str = "claude.autoTitle";
 pub const TITLE_MODEL: &str = "claude.titleModel";
+/// Reasoning depth passed to the CLI as `--effort`.
+pub const EFFORT: &str = "claude.effort";
+/// Slash commands this Claude Code installation offers. Discovered from a
+/// session rather than configured, and cached so the composer can complete
+/// them before the next session starts.
+pub const SLASH_COMMANDS: &str = "claude.slashCommands";
 
 pub const THEME: &str = "appearance.theme";
 pub const FONT_SIZE: &str = "appearance.fontSize";
@@ -36,6 +42,8 @@ pub fn defaults() -> Value {
         DEFAULT_MODEL: Value::Null,
         AUTO_TITLE: true,
         TITLE_MODEL: Value::Null,
+        EFFORT: Value::Null,
+        SLASH_COMMANDS: json!([]),
 
         THEME: "system",
         FONT_SIZE: 15,

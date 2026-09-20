@@ -154,7 +154,15 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   async send(text) {
     const id = get().currentId;
-    if (!id) return;
+    // Returning quietly here would be a silent data loss: the composer has
+    // already cleared optimistically, so the typed message would just vanish.
+    if (!id) {
+      throw new AppError({
+        kind: 'invalid',
+        message: 'Open or start a conversation first.',
+        retryable: false,
+      });
+    }
 
     const attachmentIds = get().pendingAttachments.map((a) => a.id);
     set({ pendingAttachments: [] });

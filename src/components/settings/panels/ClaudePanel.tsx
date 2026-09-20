@@ -7,10 +7,11 @@ import { Select } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { Group, Row } from '../SettingsDialog';
 import { openExternal } from '@/lib/external';
-import type { ClaudeCodeStatus } from '@/types';
+import type { ClaudeCodeStatus, EffortLevel } from '@/types';
 
 export function ClaudePanel() {
   const { settings, set, models } = useSettingsStore();
+  const slashCommands = settings?.['claude.slashCommands'] ?? [];
   const [status, setStatus] = useState<ClaudeCodeStatus | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -101,6 +102,49 @@ export function ClaudePanel() {
                 </option>
               ))}
             </Select>
+          }
+        />
+      </Group>
+
+      <Group title="Reasoning">
+        <Row
+          label="Effort"
+          description="How hard Claude works before answering. Higher is more thorough and slower; leave on the default unless you have a reason."
+          control={
+            <Select
+              value={settings['claude.effort'] ?? ''}
+              onChange={(e) =>
+                void set('claude.effort', (e.target.value || null) as EffortLevel | null)
+              }
+              aria-label="Effort"
+            >
+              <option value="">Claude Code default</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="xhigh">Very high</option>
+              <option value="max">Maximum</option>
+            </Select>
+          }
+        />
+      </Group>
+
+      <Group
+        title="Slash commands"
+        description="Type / in the composer to use Claude Code's commands and skills. The list is whatever your installation offers, picked up automatically from your first message."
+      >
+        <Row
+          label="Known commands"
+          description={
+            slashCommands.length > 0
+              ? slashCommands.slice(0, 8).join(', ') +
+                (slashCommands.length > 8 ? `, and ${slashCommands.length - 8} more` : '')
+              : 'None discovered yet — send a message and they will appear.'
+          }
+          control={
+            <span className="block text-right text-[13px] tabular-nums text-ink">
+              {slashCommands.length}
+            </span>
           }
         />
       </Group>

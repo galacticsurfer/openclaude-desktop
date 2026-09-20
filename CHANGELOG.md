@@ -27,6 +27,28 @@ separate bill, and nothing to paste or store.
   empty scratch directory unless a project names a working folder. Nothing
   reads Claude Code's credential files.
 
+### Added — Claude Code's own capabilities
+
+- **Slash commands and skills.** Type `/` in the composer for whatever your
+  installation offers — discovered from the session the CLI reports, not a
+  hardcoded list, so plugins and custom skills appear automatically.
+  Terminal-only commands are filtered out since they do nothing through a
+  pipe.
+- **Local command output.** Commands like `/context` are answered by the CLI
+  itself and emit no stream deltas at all, so their output only appears in
+  the terminal `result` record. It is now picked up — previously such a reply
+  arrived empty.
+- **Reasoning effort** (`--effort`, low through max), validated so a stale
+  value cannot make every request fail.
+- **Model selection** accepts a full model name as well as Claude Code's
+  aliases, and the concrete model each alias resolved to is recorded per
+  message.
+
+### Fixed
+
+- Sending with no conversation open silently discarded the typed message: the
+  composer clears optimistically, and the store returned without an error.
+
 Requires Claude Code to be installed and signed in.
 
 ## [0.1.0] — 2026-09-20

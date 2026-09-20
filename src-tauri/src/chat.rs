@@ -273,10 +273,11 @@ fn provider_for(db: &Db, conversation: &Conversation) -> Result<ClaudeCodeProvid
         Some(id) if !id.is_empty() => SessionRef::Resume(id.to_string()),
         _ => SessionRef::New(conversation.id.clone()),
     };
-    Ok(ClaudeCodeProvider::new(
-        working_dir(db, conversation),
-        session,
-    ))
+    let effort: Option<String> = {
+        let conn = db.conn();
+        repo::settings::get_or(&conn, sk::EFFORT, None)
+    };
+    Ok(ClaudeCodeProvider::new(working_dir(db, conversation), session).with_effort(effort))
 }
 
 /// Append a user turn and start generating a reply.
@@ -506,6 +507,7 @@ async fn run_stream(
     let mut text = String::new();
     let mut thinking = String::new();
     let mut provider_message_id: Option<String> = None;
+    let mut resolved_model: Option<String> = None;
     let mut stop_reason: Option<String> = None;
     let (mut input_tokens, mut output_tokens) = (None, None);
     let (mut cache_read, mut cache_write) = (None, None);
@@ -522,6 +524,21 @@ async fn run_stream(
         };
 
         match event {
+            StreamEvent::SessionReady {
+                model,
+                slash_commands,
+                ..
+            } => {
+                // The alias the user picked ("sonnet") resolved to a concrete
+                // model; record it so the UI can show what actually ran.
+                resolved_model = Some(model);
+                // Slash commands belong to the CLI installation, not the
+                // conversation, so they are cached app-wide for the composer.
+                if !slash_commands.is_empty() {
+                    let conn = db.conn();
+                    let _ = repo::settings::set(&conn, sk::SLASH_COMMANDS, &slash_commands);
+                }
+            }
             StreamEvent::Started {
                 message_id: pid,
                 input_tokens: it,
@@ -601,6 +618,9 @@ async fn run_stream(
                 content: &text,
                 thinking: (!thinking.is_empty()).then_some(thinking.as_str()),
                 status: Some(status),
+                // Record the concrete model, not the alias, so an old
+                // conversation still says what actually answered it.
+                model: resolved_model.as_deref(),
                 provider_message_id: provider_message_id.as_deref(),
                 stop_reason: stop_reason.as_deref(),
                 input_tokens,

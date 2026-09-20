@@ -228,12 +228,17 @@ export interface StreamEndEvent {
 // --- settings -------------------------------------------------------------
 
 export type ThemePreference = 'system' | 'light' | 'dark';
+export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type SendKeyPreference = 'enter' | 'ctrlEnter';
 
 export interface Settings {
   'claude.defaultModel': string | null;
   'claude.autoTitle': boolean;
   'claude.titleModel': string | null;
+  /** `--effort` passed to the CLI; null leaves the CLI's own default. */
+  'claude.effort': EffortLevel | null;
+  /** Discovered from a session, not configured. Used for composer completion. */
+  'claude.slashCommands': string[];
 
   'appearance.theme': ThemePreference;
   'appearance.fontSize': number;

@@ -51,6 +51,10 @@ const DISALLOWED_TOOLS: &[&str] = &[
 /// only. Kept short deliberately — the CLI resolves an alias to whatever the
 /// current model behind it is, so this does not go stale the way a pinned
 /// list would.
+/// Accepted `--effort` values. Validated rather than passed through, so a
+/// stale setting cannot make every request fail.
+pub const EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
 const MODEL_ALIASES: &[(&str, &str)] = &[
     ("opus", "Claude Opus"),
     ("sonnet", "Claude Sonnet"),
@@ -63,6 +67,8 @@ pub struct ClaudeCodeProvider {
     cwd: PathBuf,
     /// Claude Code session backing this conversation, when one exists yet.
     session: SessionRef,
+    /// Reasoning depth, when the user has chosen one.
+    effort: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +81,17 @@ pub enum SessionRef {
 
 impl ClaudeCodeProvider {
     pub fn new(cwd: PathBuf, session: SessionRef) -> Self {
-        Self { cwd, session }
+        Self {
+            cwd,
+            session,
+            effort: None,
+        }
+    }
+
+    /// `--effort` trades thoroughness against speed and token spend.
+    pub fn with_effort(mut self, effort: Option<String>) -> Self {
+        self.effort = effort.filter(|e| EFFORT_LEVELS.contains(&e.as_str()));
+        self
     }
 
     fn command(&self, req: &ChatRequest) -> Command {
@@ -95,6 +111,9 @@ impl ClaudeCodeProvider {
 
         if !req.model.trim().is_empty() {
             cmd.arg("--model").arg(&req.model);
+        }
+        if let Some(effort) = &self.effort {
+            cmd.arg("--effort").arg(effort);
         }
         if let Some(system) = req.system.as_deref().filter(|s| !s.trim().is_empty()) {
             // Append rather than replace: the CLI's own prompt carries
@@ -144,15 +163,24 @@ pub fn prompt_for(req: &ChatRequest) -> String {
 /// One decoded line of the CLI's NDJSON output.
 #[derive(Debug, PartialEq)]
 pub enum CliRecord {
-    /// Session established; carries the id to resume later.
-    Init { session_id: String, model: String },
+    /// Session established; carries the id to resume later, the model the
+    /// alias resolved to, and the slash commands available.
+    Init {
+        session_id: String,
+        model: String,
+        slash_commands: Vec<String>,
+    },
     /// A wrapped Anthropic stream event.
     Stream(StreamEvent),
-    /// Terminal record for the turn.
+    /// Terminal record for the turn. `text` is the complete answer, which
+    /// matters for local slash commands: those are answered by the CLI
+    /// itself and never stream, so `result` is the only place their output
+    /// ever appears.
     Done {
         is_error: bool,
         session_id: Option<String>,
         error: Option<String>,
+        text: Option<String>,
     },
     /// Usage limits — surfaced so a block can be explained rather than
     /// looking like a generic failure.
@@ -168,18 +196,43 @@ pub fn parse_line(line: &str) -> CliRecord {
     };
 
     match v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
-        "system" if v.get("subtype").and_then(|s| s.as_str()) == Some("init") => CliRecord::Init {
-            session_id: v
-                .get("session_id")
-                .and_then(|s| s.as_str())
-                .unwrap_or("")
-                .to_string(),
-            model: v
-                .get("model")
-                .and_then(|s| s.as_str())
-                .unwrap_or("")
-                .to_string(),
-        },
+        "system" if v.get("subtype").and_then(|s| s.as_str()) == Some("init") => {
+            // Terminal-only commands (`/doctor`, `/color`) would do nothing
+            // through a pipe, so they are filtered out rather than offered.
+            let terminal: std::collections::HashSet<&str> = v
+                .get("terminal_slash_commands")
+                .and_then(|a| a.as_array())
+                .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+                .unwrap_or_default();
+
+            let mut slash_commands: Vec<String> = v
+                .get("slash_commands")
+                .and_then(|a| a.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str())
+                        // Internal entries are not for humans to invoke.
+                        .filter(|c| !c.starts_with("__") && !terminal.contains(c))
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
+            slash_commands.sort();
+
+            CliRecord::Init {
+                session_id: v
+                    .get("session_id")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                model: v
+                    .get("model")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                slash_commands,
+            }
+        }
 
         "stream_event" => {
             let Some(event) = v.get("event") else {
@@ -194,17 +247,15 @@ pub fn parse_line(line: &str) -> CliRecord {
         "result" => {
             let is_error = v.get("is_error").and_then(|b| b.as_bool()).unwrap_or(false)
                 || v.get("subtype").and_then(|s| s.as_str()) == Some("error");
+            let result_text = v.get("result").and_then(|r| r.as_str()).map(str::to_owned);
             CliRecord::Done {
                 is_error,
                 session_id: v
                     .get("session_id")
                     .and_then(|s| s.as_str())
                     .map(str::to_owned),
-                error: v
-                    .get("result")
-                    .and_then(|r| r.as_str())
-                    .filter(|_| is_error)
-                    .map(str::to_owned),
+                error: result_text.clone().filter(|_| is_error),
+                text: result_text.filter(|t| !is_error && !t.trim().is_empty()),
             }
         }
 
@@ -287,6 +338,7 @@ impl AIProvider for ClaudeCodeProvider {
             buf: Vec<u8>,
             finished: bool,
             saw_error: Option<String>,
+            streamed_any: bool,
         }
 
         let state = State {
@@ -298,6 +350,7 @@ impl AIProvider for ClaudeCodeProvider {
             buf: vec![0u8; 16 * 1024],
             finished: false,
             saw_error: None,
+            streamed_any: false,
         };
 
         let stream = futures_util::stream::unfold(state, |mut st| async move {
@@ -314,7 +367,12 @@ impl AIProvider for ClaudeCodeProvider {
                         // Stream closed: flush any unterminated last line,
                         // then decide how the turn ended.
                         if let Some(line) = st.decoder.finish() {
-                            handle_line(&line, &mut st.pending, &mut st.saw_error);
+                            handle_line(
+                                &line,
+                                &mut st.pending,
+                                &mut st.saw_error,
+                                &mut st.streamed_any,
+                            );
                         }
                         st.finished = true;
 
@@ -337,7 +395,12 @@ impl AIProvider for ClaudeCodeProvider {
                     Ok(n) => {
                         let chunk: Vec<u8> = st.buf[..n].to_vec();
                         for line in st.decoder.push(&chunk) {
-                            handle_line(&line, &mut st.pending, &mut st.saw_error);
+                            handle_line(
+                                &line,
+                                &mut st.pending,
+                                &mut st.saw_error,
+                                &mut st.streamed_any,
+                            );
                         }
                     }
                     Err(e) => {
@@ -402,9 +465,15 @@ fn handle_line(
     line: &str,
     pending: &mut std::collections::VecDeque<StreamEvent>,
     saw_error: &mut Option<String>,
+    streamed_any: &mut bool,
 ) {
     match parse_line(line) {
-        CliRecord::Stream(ev) => pending.push_back(ev),
+        CliRecord::Stream(ev) => {
+            if matches!(ev, StreamEvent::TextDelta(_)) {
+                *streamed_any = true;
+            }
+            pending.push_back(ev)
+        }
         CliRecord::RateLimited { message } => {
             pending.push_back(StreamEvent::Failed(super::wire::describe_failure(
                 "rate_limit",
@@ -412,13 +481,34 @@ fn handle_line(
             )));
         }
         CliRecord::Done {
-            is_error, error, ..
+            is_error,
+            error,
+            text,
+            ..
         } => {
             if is_error {
                 *saw_error = Some(error.unwrap_or_else(|| "Claude Code reported an error.".into()));
+            } else if let Some(t) = text {
+                // Only when nothing streamed. On a normal turn `result`
+                // repeats the whole answer, so emitting it as well would
+                // duplicate every reply.
+                if !*streamed_any {
+                    pending.push_back(StreamEvent::TextDelta(t));
+                }
             }
         }
-        CliRecord::Init { .. } | CliRecord::Ignored => {}
+        CliRecord::Init {
+            session_id,
+            model,
+            slash_commands,
+        } => {
+            pending.push_back(StreamEvent::SessionReady {
+                session_id,
+                model,
+                slash_commands,
+            });
+        }
+        CliRecord::Ignored => {}
     }
 }
 
@@ -507,16 +597,58 @@ mod tests {
     }
 
     #[test]
-    fn parses_the_init_record() {
-        let line =
-            r#"{"type":"system","subtype":"init","session_id":"abc","model":"claude-opus-5"}"#;
-        assert_eq!(
-            parse_line(line),
+    fn parses_the_init_record_including_available_commands() {
+        let line = r#"{"type":"system","subtype":"init","session_id":"abc",
+                       "model":"claude-opus-5",
+                       "slash_commands":["model","context","__internal","doctor","compact"],
+                       "terminal_slash_commands":["doctor"]}"#;
+        match parse_line(line) {
             CliRecord::Init {
-                session_id: "abc".into(),
-                model: "claude-opus-5".into()
+                session_id,
+                model,
+                slash_commands,
+            } => {
+                assert_eq!(session_id, "abc");
+                assert_eq!(model, "claude-opus-5");
+                // Sorted, with internal and terminal-only entries dropped —
+                // neither would do anything through a pipe.
+                assert_eq!(slash_commands, vec!["compact", "context", "model"]);
             }
-        );
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_init_record_without_commands_is_still_fine() {
+        let line = r#"{"type":"system","subtype":"init","session_id":"abc","model":"m"}"#;
+        match parse_line(line) {
+            CliRecord::Init { slash_commands, .. } => assert!(slash_commands.is_empty()),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn effort_is_validated_before_becoming_a_flag() {
+        let base = || ClaudeCodeProvider::new(PathBuf::from("/tmp"), SessionRef::New("s".into()));
+        let args = |p: ClaudeCodeProvider| -> Vec<String> {
+            p.command(&req("hi"))
+                .as_std()
+                .get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+
+        let good = args(base().with_effort(Some("xhigh".into())));
+        assert!(good
+            .windows(2)
+            .any(|w| w[0] == "--effort" && w[1] == "xhigh"));
+
+        // A stale or bogus value must not make every request fail.
+        let bogus = args(base().with_effort(Some("turbo".into())));
+        assert!(!bogus.iter().any(|a| a == "--effort"));
+
+        let none = args(base().with_effort(None));
+        assert!(!none.iter().any(|a| a == "--effort"));
     }
 
     #[test]
@@ -579,6 +711,48 @@ mod tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn a_local_command_answer_arrives_only_in_the_result_record() {
+        // `/context` and friends are answered by the CLI itself and never
+        // stream, so `result` is the only place their output shows up.
+        // r###: the payload contains `"##` (a quote then a markdown
+        // heading), which would terminate a shorter raw-string literal.
+        let line = r###"{"type":"result","subtype":"success","is_error":false,
+                         "result":"## Context Usage\n\n12.3k / 1m","session_id":"abc"}"###;
+        match parse_line(line) {
+            CliRecord::Done { text, error, .. } => {
+                assert_eq!(text.as_deref(), Some("## Context Usage\n\n12.3k / 1m"));
+                assert!(error.is_none());
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn result_text_is_only_emitted_when_nothing_streamed() {
+        use std::collections::VecDeque;
+        let result =
+            r#"{"type":"result","subtype":"success","is_error":false,"result":"full answer"}"#;
+
+        // Nothing streamed (a local command): the result text is the answer.
+        let mut pending = VecDeque::new();
+        let mut err = None;
+        let mut streamed = false;
+        handle_line(result, &mut pending, &mut err, &mut streamed);
+        assert_eq!(
+            pending.pop_front(),
+            Some(StreamEvent::TextDelta("full answer".into()))
+        );
+
+        // Something streamed: `result` repeats the whole reply, so emitting
+        // it again would duplicate every answer.
+        let mut pending = VecDeque::new();
+        let mut err = None;
+        let mut streamed = true;
+        handle_line(result, &mut pending, &mut err, &mut streamed);
+        assert!(pending.is_empty());
     }
 
     #[test]

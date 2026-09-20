@@ -13,7 +13,9 @@
 | Automatic conversation titles | ✅ |
 | Conversation history, rename, archive, trash | ✅ |
 | Full-text search (FTS5, Ctrl+K) | ✅ |
-| Model selector (Claude Code aliases) | ✅ |
+| Model selector (Claude Code aliases, or any full model name) | ✅ |
+| Slash commands and skills, discovered from the CLI | ✅ |
+| Reasoning effort (`--effort`) | ✅ |
 | Drag-and-drop, paste and picker attachments | ✅ |
 | Light / dark / system themes | ✅ |
 | Settings across 8 sections | ✅ |

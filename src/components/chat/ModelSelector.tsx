@@ -12,10 +12,10 @@ interface Props {
 /**
  * Model picker.
  *
- * The list comes from the provider, never from a hardcoded array: ids are
- * stored, display names are only shown. A model the conversation already uses
- * is always offered even if it has since disappeared from the account's list,
- * so an old conversation never loses its setting.
+ * These are Claude Code's own aliases rather than pinned ids, so each one
+ * follows whatever model is current — a hardcoded list would go stale. A full
+ * model name can be typed instead, and whatever the conversation already uses
+ * is always offered, so an old conversation never loses its setting.
  */
 export function ModelSelector({ value, onChange, disabled }: Props) {
   const { models, modelsStale, refreshModels } = useSettingsStore();
@@ -25,13 +25,29 @@ export function ModelSelector({ value, onChange, disabled }: Props) {
   }, [models.length, refreshModels]);
 
   const known = models.some((m) => m.id === value);
-  const options = known ? models : [{ id: value, displayName: value, fromFallback: false }, ...models];
+  const options = known
+    ? models
+    : [{ id: value, displayName: value, fromFallback: false }, ...models];
+
+  const CUSTOM = '__custom__';
 
   return (
     <div className="flex items-center gap-1.5">
       <Select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          if (e.target.value !== CUSTOM) {
+            onChange(e.target.value);
+            return;
+          }
+          // Full names like `claude-fable-5` are valid too; the CLI accepts
+          // either. Prompt rather than hide the capability.
+          const name = window.prompt(
+            'Model name (an alias such as "opus", or a full name such as "claude-fable-5")',
+            value,
+          );
+          if (name && name.trim()) onChange(name.trim());
+        }}
         disabled={disabled}
         aria-label="Model"
         className="h-7 min-w-[170px] max-w-[240px] border-transparent bg-transparent pl-2 pr-7 text-[13px] text-ink-soft hover:bg-sunken"
@@ -41,13 +57,11 @@ export function ModelSelector({ value, onChange, disabled }: Props) {
             {m.displayName}
           </option>
         ))}
+        <option value={CUSTOM}>Other model…</option>
       </Select>
       {modelsStale && (
-        <span
-          title="This list could not be refreshed from the API, so it may be incomplete."
-          className="text-warn"
-        >
-          <AlertCircle size={13} aria-label="Model list may be out of date" />
+        <span title="Model list may be incomplete." className="text-warn">
+          <AlertCircle size={13} aria-label="Model list may be incomplete" />
         </span>
       )}
     </div>

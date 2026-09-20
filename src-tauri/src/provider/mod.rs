@@ -52,6 +52,14 @@ pub struct ChatRequest {
 /// database writes and Tauri events; it never sees provider wire format.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamEvent {
+    /// The backend session is up. Carries what it resolved a model alias to,
+    /// and the slash commands this installation offers — both only knowable
+    /// once a session starts, and both worth showing the user.
+    SessionReady {
+        session_id: String,
+        model: String,
+        slash_commands: Vec<String>,
+    },
     /// Stream accepted; carries the provider's message id and prompt usage.
     Started {
         message_id: String,

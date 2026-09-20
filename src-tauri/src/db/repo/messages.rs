@@ -152,6 +152,8 @@ pub fn update_stream_buffer(
 #[derive(Debug, Default, Clone)]
 pub struct Completion<'a> {
     pub content: &'a str,
+    /// Concrete model that produced this, when the backend reports one.
+    pub model: Option<&'a str>,
     pub thinking: Option<&'a str>,
     pub status: Option<MessageStatus>,
     pub provider_message_id: Option<&'a str>,
@@ -168,6 +170,7 @@ pub fn finalize(conn: &Connection, id: &str, c: Completion<'_>) -> Result<()> {
             SET content = ?2, thinking = ?3, status = ?4, provider_message_id = ?5,
                 stop_reason = ?6, input_tokens = ?7, output_tokens = ?8,
                 cache_read_tokens = ?9, cache_write_tokens = ?10,
+                model = COALESCE(?12, model),
                 error_kind = NULL, error_message = NULL, updated_at = ?11
           WHERE id = ?1",
         params![
@@ -181,7 +184,8 @@ pub fn finalize(conn: &Connection, id: &str, c: Completion<'_>) -> Result<()> {
             c.output_tokens,
             c.cache_read_tokens,
             c.cache_write_tokens,
-            now_ms()
+            now_ms(),
+            c.model
         ],
     )?;
     Ok(())

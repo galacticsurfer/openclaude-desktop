@@ -4,6 +4,7 @@ import { useConversationStore } from '@/stores/useConversationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { AttachmentChip } from './AttachmentChip';
+import { SlashCommandMenu, matchCommands, slashQuery } from './SlashCommandMenu';
 import { IconButton } from '@/components/ui/IconButton';
 import { cn } from '@/lib/cn';
 
@@ -16,6 +17,15 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   const toast = useUIStore((s) => s.toast);
 
   const [value, setValue] = useState('');
+  const slashCommands = useSettingsStore((s) => s.settings?.['claude.slashCommands'] ?? []);
+  const [slashCursor, setSlashCursor] = useState(0);
+  const slashOpen = slashQuery(value) !== null && matchCommands(slashCommands, slashQuery(value) ?? '').length > 0;
+
+  const completeSlash = useCallback((command: string) => {
+    // A trailing space both commits the choice and closes the menu.
+    setValue(`/${command} `);
+    textareaRef.current?.focus();
+  }, []);
   const [busy, setBusy] = useState(false);
   // Dragging is reported by Tauri's native drag-drop event (see AppShell);
   // the DOM equivalent has no file paths, and handling both would attach a
@@ -57,6 +67,35 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   }, [value, pendingAttachments.length, generating, busy, send]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // The slash menu owns navigation keys while it is open.
+    if (slashOpen) {
+      const matches = matchCommands(slashCommands, slashQuery(value) ?? '');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashCursor((c) => Math.min(c + 1, matches.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashCursor((c) => Math.max(c - 1, 0));
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        const picked = matches[slashCursor];
+        if (picked) {
+          e.preventDefault();
+          completeSlash(picked);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        // Close the menu without discarding what was typed.
+        setValue((v) => `${v} `);
+        return;
+      }
+    }
+
     if (e.key === 'Escape' && generating) {
       e.preventDefault();
       void stop();
@@ -140,7 +179,13 @@ export function Composer({ disabled }: { disabled?: boolean }) {
             aria-label="Message Claude"
             // Kept short: a longer hint clips in a narrow window, and the
             // send key is discoverable via Ctrl+/ and Settings → General.
-            placeholder={disabled ? 'Claude Code is not installed — see Settings' : 'Message Claude…'}
+            placeholder={
+              disabled
+                ? 'Claude Code is not installed — see Settings'
+                : slashCommands.length > 0
+                  ? 'Message Claude…  (/ for commands)'
+                  : 'Message Claude…'
+            }
             title={sendKey === 'enter' ? 'Enter to send · Shift+Enter for a new line' : 'Ctrl+Enter to send'}
             className="min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[14.5px] leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:cursor-not-allowed scroll-thin"
             style={{ maxHeight: MAX_ROWS_PX }}
@@ -173,6 +218,14 @@ export function Composer({ disabled }: { disabled?: boolean }) {
               <ArrowUp size={16} strokeWidth={2.5} />
             </button>
           )}
+
+          <SlashCommandMenu
+            value={value}
+            commands={slashCommands}
+            cursor={slashCursor}
+            onCursorChange={setSlashCursor}
+            onPick={completeSlash}
+          />
 
           {dragging && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-accent-soft/90 text-[13px] font-medium text-accent">

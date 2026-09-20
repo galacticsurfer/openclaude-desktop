@@ -119,6 +119,13 @@ languages, lazily loaded · copy / word-wrap / save on every code block ·
 tables, task lists, blockquotes · collapsible extended thinking · stop
 generation (Esc) · retry and continue · branch from any message
 
+**Claude Code's own commands**
+Type `/` for the slash commands and skills *your* installation offers —
+discovered from the CLI rather than hardcoded, so plugins and custom skills
+appear automatically. Arrow keys and Tab to complete. Model picker follows
+Claude Code's aliases (which track the current models) and accepts a full
+model name; reasoning effort is selectable from `low` through `max`.
+
 **Organisation**
 Projects with standing instructions, default model and working folder ·
 pin, archive, and a trash you can undo from · automatic titles · rename ·

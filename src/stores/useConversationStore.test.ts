@@ -153,6 +153,17 @@ describe('streaming buffer', () => {
   });
 });
 
+describe('send guard', () => {
+  it('rejects rather than silently dropping the message when nothing is open', async () => {
+    // The composer clears optimistically, so a quiet return would lose what
+    // the user typed with no error shown.
+    useConversationStore.setState({ currentId: null });
+    await expect(useConversationStore.getState().send('hello')).rejects.toThrow(
+      /conversation/i,
+    );
+  });
+});
+
 describe('title patching', () => {
   it('updates the sidebar row and the open conversation together', () => {
     useConversationStore.setState({
