@@ -4,7 +4,8 @@ use rusqlite::{params, Connection, Row};
 
 const COLS: &str = "id, conversation_id, seq, role, content, thinking, status, model,
      provider_message_id, stop_reason, input_tokens, output_tokens, cache_read_tokens,
-     cache_write_tokens, error_kind, error_message, created_at, updated_at, metadata";
+     cache_write_tokens, error_kind, error_message, created_at, updated_at, metadata,
+     thinking_tokens";
 
 fn map(row: &Row<'_>) -> rusqlite::Result<Message> {
     Ok(Message {
@@ -27,6 +28,7 @@ fn map(row: &Row<'_>) -> rusqlite::Result<Message> {
         created_at: row.get(16)?,
         updated_at: row.get(17)?,
         metadata: parse_json_object(&row.get::<_, String>(18)?),
+        thinking_tokens: row.get(19)?,
         attachments: Vec::new(),
     })
 }
@@ -155,6 +157,7 @@ pub struct Completion<'a> {
     /// Concrete model that produced this, when the backend reports one.
     pub model: Option<&'a str>,
     pub thinking: Option<&'a str>,
+    pub thinking_tokens: Option<i64>,
     pub status: Option<MessageStatus>,
     pub provider_message_id: Option<&'a str>,
     pub stop_reason: Option<&'a str>,
@@ -170,7 +173,7 @@ pub fn finalize(conn: &Connection, id: &str, c: Completion<'_>) -> Result<()> {
             SET content = ?2, thinking = ?3, status = ?4, provider_message_id = ?5,
                 stop_reason = ?6, input_tokens = ?7, output_tokens = ?8,
                 cache_read_tokens = ?9, cache_write_tokens = ?10,
-                model = COALESCE(?12, model),
+                model = COALESCE(?12, model), thinking_tokens = ?13,
                 error_kind = NULL, error_message = NULL, updated_at = ?11
           WHERE id = ?1",
         params![
@@ -185,7 +188,8 @@ pub fn finalize(conn: &Connection, id: &str, c: Completion<'_>) -> Result<()> {
             c.cache_read_tokens,
             c.cache_write_tokens,
             now_ms(),
-            c.model
+            c.model,
+            c.thinking_tokens
         ],
     )?;
     Ok(())

@@ -124,6 +124,10 @@ pub struct Message {
     pub role: Role,
     pub content: String,
     pub thinking: Option<String>,
+    /// Reasoning tokens the provider estimated for this reply. Claude Code
+    /// gives a count but never the text, so this may be set while
+    /// `thinking` is None.
+    pub thinking_tokens: Option<i64>,
     pub status: MessageStatus,
     pub model: Option<String>,
     pub provider_message_id: Option<String>,

@@ -64,6 +64,9 @@ export interface Message {
   role: Role;
   content: string;
   thinking: string | null;
+  /** Reasoning tokens the provider estimated. Claude Code reports a count
+   *  but never the text, so this can be set while `thinking` is null. */
+  thinkingTokens: number | null;
   status: MessageStatus;
   model: string | null;
   providerMessageId: string | null;
@@ -217,6 +220,12 @@ export interface StreamDeltaEvent {
   messageId: string;
   text: string;
   channel: 'text' | 'thinking';
+}
+
+export interface ThinkingUpdateEvent {
+  conversationId: string;
+  messageId: string;
+  tokens: number | null;
 }
 
 export interface StreamEndEvent {

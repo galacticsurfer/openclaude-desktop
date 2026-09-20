@@ -16,7 +16,7 @@ import { AppError } from '@/services/ipc';
 
 export function ChatView() {
   const {
-    current, messages, streams, loadingMessages, currentId,
+    current, messages, streams, thinkingState, loadingMessages, currentId,
     retry, continueReply, newConversation, open, loadConversations, projects,
   } = useConversationStore();
   const { toggleSidebar, sidebarCollapsed, openOverlay, toast } = useUIStore();
@@ -197,6 +197,7 @@ export function ChatView() {
                   key={m.id}
                   message={m}
                   stream={streams[m.id] ?? null}
+                  thinkingState={thinkingState[m.id] ?? null}
                   isLast={i === lastIndex}
                   onRetry={() => void retry()}
                   onContinue={() => void continueReply()}

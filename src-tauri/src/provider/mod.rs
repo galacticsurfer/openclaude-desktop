@@ -75,6 +75,12 @@ pub enum StreamEvent {
     TextDelta(String),
     /// A chunk of extended-thinking output, shown collapsed and never replayed.
     ThinkingDelta(String),
+    /// A reasoning block opened. Headless Claude Code withholds the reasoning
+    /// text itself, so for that backend this — and [`Self::ThinkingProgress`]
+    /// — is all we ever learn about it.
+    ThinkingStarted,
+    /// The provider's running estimate of reasoning tokens spent so far.
+    ThinkingProgress(i64),
     /// Terminal success.
     Completed {
         stop_reason: Option<String>,

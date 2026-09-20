@@ -70,11 +70,15 @@ export const ConversationItem = memo(function ConversationItem({
         type="button"
         onClick={onOpen}
         aria-current={active ? 'page' : undefined}
+        aria-describedby={streaming ? `${c.id}-working` : undefined}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-2.5 pr-1 text-left"
       >
         <span className="flex size-3.5 shrink-0 items-center justify-center" aria-hidden>
           {streaming ? (
-            <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+            // A pulsing dot read as the same thing as the active-row dot, so
+            // a reply in progress was invisible. A ring that actually spins
+            // is unambiguous, and distinguishes *working* from *selected*.
+            <span className="size-3 animate-spin rounded-full border-[1.5px] border-accent border-r-transparent" />
           ) : c.pinned ? (
             <Pin size={11} className="text-ink-faint" fill="currentColor" />
           ) : (
@@ -87,6 +91,12 @@ export const ConversationItem = memo(function ConversationItem({
           )}
         </span>
 
+        {streaming && (
+          <span id={`${c.id}-working`} className="sr-only">
+            Claude is replying
+          </span>
+        )}
+
         <span className="min-w-0 flex-1">
           <span
             className={cn(
@@ -98,8 +108,13 @@ export const ConversationItem = memo(function ConversationItem({
           </span>
         </span>
 
-        <span className="shrink-0 pr-1 text-[11px] tabular-nums text-ink-faint opacity-100 transition-opacity group-hover:opacity-0">
-          {formatRelative(c.lastMessageAt ?? c.updatedAt)}
+        <span
+          className={cn(
+            'shrink-0 pr-1 text-[11px] tabular-nums transition-opacity group-hover:opacity-0',
+            streaming ? 'text-accent' : 'text-ink-faint',
+          )}
+        >
+          {streaming ? 'working…' : formatRelative(c.lastMessageAt ?? c.updatedAt)}
         </span>
       </button>
 

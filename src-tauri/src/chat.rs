@@ -64,8 +64,18 @@ pub struct StreamEnd {
     pub error: Option<ErrorDetail>,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinkingUpdate {
+    pub conversation_id: String,
+    pub message_id: String,
+    /// The provider's running estimate, when it has offered one.
+    pub tokens: Option<i64>,
+}
+
 pub const EV_START: &str = "chat:start";
 pub const EV_DELTA: &str = "chat:delta";
+pub const EV_THINKING: &str = "chat:thinking";
 pub const EV_END: &str = "chat:end";
 pub const EV_CONVERSATION: &str = "conversation:updated";
 pub const EV_TITLE: &str = "conversation:title";
@@ -538,6 +548,8 @@ async fn run_stream(
     let mut pending_text = String::new();
     let mut pending_thinking = String::new();
     let mut last_emit = std::time::Instant::now();
+    // Reasoning: Claude Code reports a token estimate rather than text.
+    let mut thinking_tokens: Option<i64> = None;
 
     while let Some(item) = stream.next().await {
         if cancel.load(Ordering::SeqCst) {
@@ -606,6 +618,20 @@ async fn run_stream(
                 thinking.push_str(&chunk);
                 pending_thinking.push_str(&chunk);
             }
+            StreamEvent::ThinkingStarted => {
+                // Announce it immediately: with no reasoning text coming,
+                // this is the only thing standing between the user and a
+                // blank screen while Claude thinks.
+                emit_thinking(app, conversation_id, message_id, None);
+            }
+            StreamEvent::ThinkingProgress(n) => {
+                // Estimates can arrive out of order or restart per block;
+                // the largest seen is the honest running total.
+                if thinking_tokens.map_or(true, |prev| n > prev) {
+                    thinking_tokens = Some(n);
+                    emit_thinking(app, conversation_id, message_id, thinking_tokens);
+                }
+            }
             StreamEvent::Completed {
                 stop_reason: sr,
                 output_tokens: ot,
@@ -670,6 +696,7 @@ async fn run_stream(
             repo::messages::Completion {
                 content: &text,
                 thinking: (!thinking.is_empty()).then_some(thinking.as_str()),
+                thinking_tokens,
                 status: Some(status),
                 // Record the concrete model, not the alias, so an old
                 // conversation still says what actually answered it.
@@ -740,6 +767,18 @@ fn emit_pending(
             },
         );
     }
+}
+
+/// Tell the UI that Claude is reasoning, and how much of it there has been.
+fn emit_thinking(app: &AppHandle, conversation_id: &str, message_id: &str, tokens: Option<i64>) {
+    let _ = app.emit(
+        EV_THINKING,
+        ThinkingUpdate {
+            conversation_id: conversation_id.to_string(),
+            message_id: message_id.to_string(),
+            tokens,
+        },
+    );
 }
 
 /// Persist a failure, keeping whatever text arrived, and tell the UI.

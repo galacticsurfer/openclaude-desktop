@@ -37,10 +37,14 @@ export function Switch({ checked, onChange, label, description, disabled }: Prop
           disabled && 'pointer-events-none',
         )}
       >
+        {/* `left-0.5` is load-bearing: without an explicit inset the thumb
+            falls back to its static position, which the UA stylesheet centres
+            (buttons are `text-align: center`), and the translate then pushes
+            it outside the track. */}
         <span
           className={cn(
-            'absolute top-0.5 size-4 rounded-full bg-white shadow-subtle transition-transform',
-            checked ? 'translate-x-[18px]' : 'translate-x-0.5',
+            'absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow-subtle transition-transform',
+            checked ? 'translate-x-4' : 'translate-x-0',
           )}
         />
       </button>

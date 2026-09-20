@@ -17,6 +17,8 @@ interface Props {
   message: Message;
   /** Live text when this message is still streaming, else null. */
   stream: { text: string; thinking: string } | null;
+  /** Live reasoning state, present only while Claude is thinking. */
+  thinkingState: { tokens: number | null } | null;
   isLast: boolean;
   onRetry: () => void;
   onContinue: () => void;
@@ -33,6 +35,7 @@ interface Props {
 export const MessageBubble = memo(function MessageBubble({
   message: m,
   stream,
+  thinkingState,
   isLast,
   onRetry,
   onContinue,
@@ -49,6 +52,11 @@ export const MessageBubble = memo(function MessageBubble({
   const text = useSmoothText(streaming ? stream.text : m.content, streaming);
   const thinking = streaming ? stream.thinking : (m.thinking ?? '');
   const isUser = m.role === 'user';
+  // Claude Code reports reasoning as a token estimate and withholds the text,
+  // so the count is usually all there is to show. Live state first, then the
+  // number persisted on the message once the reply is finished.
+  const thinkingTokens = thinkingState?.tokens ?? m.thinkingTokens;
+  const reasoning = thinkingState !== null || (m.thinkingTokens ?? 0) > 0;
 
   function copy() {
     onCopy(text);
@@ -93,6 +101,27 @@ export const MessageBubble = memo(function MessageBubble({
           {m.attachments.map((a) => (
             <AttachmentChip key={a.id} attachment={a} readOnly />
           ))}
+        </div>
+      )}
+
+      {reasoning && thinking.length === 0 && (
+        <div className="mb-2 flex items-center gap-1.5 text-[12px] text-ink-faint">
+          {thinkingState !== null ? (
+            <>
+              <span
+                className="size-3 animate-spin rounded-full border-[1.5px] border-current border-r-transparent"
+                aria-hidden
+              />
+              <span>
+                Thinking{thinkingTokens ? ` · ~${formatTokens(thinkingTokens)} tokens` : '…'}
+              </span>
+            </>
+          ) : (
+            <>
+              <Brain size={12} aria-hidden />
+              <span>Thought for ~{formatTokens(thinkingTokens ?? 0)} tokens</span>
+            </>
+          )}
         </div>
       )}
 

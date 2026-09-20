@@ -12,6 +12,7 @@ import type {
   ProjectSummary,
   StreamDeltaEvent,
   StreamEndEvent,
+  ThinkingUpdateEvent,
 } from '@/types';
 
 /** Text accumulated for a reply that is still arriving. */
@@ -31,6 +32,14 @@ interface ConversationState {
   streams: Record<string, StreamBuffer>;
   /** conversationIds with a generation in flight. */
   generating: string[];
+  /**
+   * messageId -> reasoning state, present only while Claude is thinking.
+   *
+   * Deliberately not part of `streams`: that record is rebuilt wholesale
+   * from the delta buffer on every animation frame, which would drop
+   * anything written here in between.
+   */
+  thinkingState: Record<string, { tokens: number | null }>;
 
   loadingList: boolean;
   loadingMessages: boolean;
@@ -54,11 +63,20 @@ interface ConversationState {
   clearStaged: () => void;
 
   applyDelta: (e: StreamDeltaEvent) => void;
+  applyThinking: (e: ThinkingUpdateEvent) => void;
   applyEnd: (e: StreamEndEvent) => void;
   markStarted: (conversationId: string, messageId: string) => void;
   patchTitle: (conversationId: string, title: string) => void;
 
   isGenerating: (conversationId?: string | null) => boolean;
+}
+
+/** A copy of `record` without `key`, or `record` itself when absent. */
+function omit<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const next = { ...record };
+  delete next[key];
+  return next;
 }
 
 // --- delta coalescing -----------------------------------------------------
@@ -86,6 +104,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   messages: [],
   streams: {},
   generating: [],
+  thinkingState: {},
   loadingList: true,
   loadingMessages: false,
   pendingAttachments: [],
@@ -272,6 +291,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
         ? s.generating
         : [...s.generating, conversationId],
       streams: { ...s.streams, [messageId]: { text: '', thinking: '' } },
+      // A retry reuses the message id; clear any reasoning left from the
+      // attempt before it.
+      thinkingState: omit(s.thinkingState, messageId),
     }));
   },
 
@@ -288,6 +310,14 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     });
   },
 
+  applyThinking(e) {
+    // Only ever set while the reply is live; the persisted count on the
+    // message is what survives afterwards.
+    set((s) => ({
+      thinkingState: { ...s.thinkingState, [e.messageId]: { tokens: e.tokens } },
+    }));
+  },
+
   applyEnd(e) {
     pending.delete(e.messageId);
     set((s) => {
@@ -295,6 +325,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       delete streams[e.messageId];
       return {
         streams,
+        thinkingState: omit(s.thinkingState, e.messageId),
         generating: s.generating.filter((id) => id !== e.conversationId),
       };
     });

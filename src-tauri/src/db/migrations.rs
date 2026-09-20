@@ -13,11 +13,18 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "init",
-    sql: include_str!("../../migrations/001_init.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "init",
+        sql: include_str!("../../migrations/001_init.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "thinking_tokens",
+        sql: include_str!("../../migrations/002_thinking_tokens.sql"),
+    },
+];
 
 pub fn latest_version() -> i64 {
     MIGRATIONS.last().map(|m| m.version).unwrap_or(0)

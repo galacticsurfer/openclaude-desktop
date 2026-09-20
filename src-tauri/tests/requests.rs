@@ -19,6 +19,7 @@ fn msg(role: Role, content: &str, status: MessageStatus) -> Message {
         role,
         content: content.into(),
         thinking: None,
+        thinking_tokens: None,
         status,
         model: None,
         provider_message_id: None,

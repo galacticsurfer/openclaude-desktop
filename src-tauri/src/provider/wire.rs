@@ -37,9 +37,23 @@ enum DeltaBody {
     #[serde(rename = "text_delta")]
     Text { text: String },
     #[serde(rename = "thinking_delta")]
-    Thinking { thinking: String },
+    Thinking {
+        thinking: String,
+        /// Claude Code sends this instead of the reasoning text.
+        estimated_tokens: Option<i64>,
+    },
     #[serde(other)]
     Other,
+}
+
+#[derive(Deserialize)]
+struct BlockStart {
+    content_block: StartedBlock,
+}
+#[derive(Deserialize)]
+struct StartedBlock {
+    #[serde(rename = "type")]
+    kind: String,
 }
 
 #[derive(Deserialize)]
@@ -55,8 +69,8 @@ struct StopInfo {
 /// Translate one Anthropic stream event into a [`StreamEvent`].
 ///
 /// Returns `None` for events we deliberately ignore (`ping`,
-/// `content_block_start`/`_stop`, anything added upstream later) so a new
-/// event type is a no-op rather than a failure.
+/// `content_block_stop`, non-thinking block starts, anything added upstream
+/// later) so a new event type is a no-op rather than a failure.
 pub fn map_event(kind: &str, raw: &serde_json::Value) -> Option<StreamEvent> {
     match kind {
         "message_start" => {
@@ -74,9 +88,25 @@ pub fn map_event(kind: &str, raw: &serde_json::Value) -> Option<StreamEvent> {
             let d: BlockDelta = serde_json::from_value(raw.clone()).ok()?;
             match d.delta {
                 DeltaBody::Text { text } => Some(StreamEvent::TextDelta(text)),
-                DeltaBody::Thinking { thinking } => Some(StreamEvent::ThinkingDelta(thinking)),
+                // Claude Code opens a thinking block, then streams empty
+                // `thinking` strings carrying only a token estimate. Report
+                // whichever of the two the provider actually gave us.
+                DeltaBody::Thinking {
+                    thinking,
+                    estimated_tokens,
+                } => {
+                    if thinking.is_empty() {
+                        estimated_tokens.map(StreamEvent::ThinkingProgress)
+                    } else {
+                        Some(StreamEvent::ThinkingDelta(thinking))
+                    }
+                }
                 DeltaBody::Other => None,
             }
+        }
+        "content_block_start" => {
+            let b: BlockStart = serde_json::from_value(raw.clone()).ok()?;
+            (b.content_block.kind == "thinking").then_some(StreamEvent::ThinkingStarted)
         }
         "message_delta" => {
             let d: MessageDelta = serde_json::from_value(raw.clone()).ok()?;
@@ -177,6 +207,49 @@ mod tests {
         let thinking = json!({"delta": {"type": "thinking_delta", "thinking": "hmm"}});
         assert_eq!(
             map_event("content_block_delta", &thinking),
+            Some(StreamEvent::ThinkingDelta("hmm".into()))
+        );
+    }
+
+    #[test]
+    fn a_thinking_block_opening_is_announced() {
+        let raw = json!({"content_block": {"type": "thinking", "thinking": "", "signature": ""}});
+        assert_eq!(
+            map_event("content_block_start", &raw),
+            Some(StreamEvent::ThinkingStarted)
+        );
+    }
+
+    #[test]
+    fn a_text_block_opening_is_not_mistaken_for_thinking() {
+        let raw = json!({"content_block": {"type": "text", "text": ""}});
+        assert_eq!(map_event("content_block_start", &raw), None);
+    }
+
+    #[test]
+    fn an_empty_thinking_delta_reports_the_token_estimate_instead() {
+        // What Claude Code actually sends: no reasoning text, just a count.
+        let raw =
+            json!({"delta": {"type": "thinking_delta", "thinking": "", "estimated_tokens": 50}});
+        assert_eq!(
+            map_event("content_block_delta", &raw),
+            Some(StreamEvent::ThinkingProgress(50))
+        );
+    }
+
+    #[test]
+    fn an_empty_thinking_delta_with_no_estimate_is_ignored() {
+        let raw =
+            json!({"delta": {"type": "thinking_delta", "thinking": "", "estimated_tokens": null}});
+        assert_eq!(map_event("content_block_delta", &raw), None);
+    }
+
+    #[test]
+    fn reasoning_text_still_wins_when_a_provider_sends_it() {
+        let raw =
+            json!({"delta": {"type": "thinking_delta", "thinking": "hmm", "estimated_tokens": 9}});
+        assert_eq!(
+            map_event("content_block_delta", &raw),
             Some(StreamEvent::ThinkingDelta("hmm".into()))
         );
     }
