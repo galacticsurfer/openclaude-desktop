@@ -86,8 +86,8 @@ export function Welcome({ onDone }: { onDone: () => void }) {
             Welcome to OpenClaude Desktop
           </h1>
           <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-ink-soft">
-            An unofficial, open-source Claude client for Linux. Connect your own Anthropic API
-            key to get started.
+            An unofficial, open-source Claude client for Linux. Connect your
+            Anthropic account to get started.
           </p>
         </div>
 
