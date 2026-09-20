@@ -66,6 +66,22 @@ separate bill, and nothing to paste or store.
 
 ### Performance
 
+- **Streaming text is smooth, and stays smooth.** Three compounding causes:
+  the backend emitted one IPC message per token; the whole reply was
+  re-parsed as Markdown on every frame (O(n) per frame, so O(n²) over a
+  reply — which is why a long answer got progressively choppier); and the
+  sidebar, composer and app shell all subscribed to the *entire* store, so
+  each re-rendered around sixty times a second for state they never showed.
+  Deltas are now batched at ~30ms, only completed Markdown blocks are parsed
+  while the tail renders as plain text, and components select just what they
+  use.
+- The sidebar toggle no longer animates `width`, which relayouts both panes
+  on every frame; it is instant, which is snappier and cheaper. The sidebar,
+  conversation rows and messages are CSS-contained so one pane's reflow does
+  not walk the other.
+- The app's own icon now appears in the window — the sidebar header and the
+  empty state — not only on the first-run screen.
+
 - Window resize, minimise and maximise are smoother: the chat header no
   longer uses a blurred translucent backdrop (re-blurred every frame, and
   invisible over a solid canvas), the auto-scroll `ResizeObserver` coalesces

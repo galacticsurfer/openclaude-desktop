@@ -62,7 +62,7 @@ export const ConversationItem = memo(function ConversationItem({
   return (
     <div
       className={cn(
-        'group relative flex items-center rounded-md transition-colors',
+        'conversation-row group relative flex items-center rounded-md transition-colors',
         active ? 'bg-accent-soft' : 'hover:bg-sunken',
       )}
     >

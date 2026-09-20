@@ -21,7 +21,11 @@ export function AppShell() {
     overlay, openOverlay, closeOverlay, toggleSidebar,
     sidebarCollapsed, setSidebarCollapsed, setDragActive,
   } = useUIStore();
-  const { newConversation, stop, isGenerating, stagePaths, messages } = useConversationStore();
+  const newConversation = useConversationStore((s) => s.newConversation);
+  const stop = useConversationStore((s) => s.stop);
+  const isGenerating = useConversationStore((s) => s.isGenerating);
+  const stagePaths = useConversationStore((s) => s.stagePaths);
+  const messages = useConversationStore((s) => s.messages);
   const { settings, set } = useSettingsStore();
 
   // Restore the sidebar state once settings have loaded.
@@ -135,8 +139,11 @@ export function AppShell() {
       </a>
 
       <div
+        // No width transition: animating width relayouts both panes on every
+        // frame, which is exactly the jank it was meant to hide. An instant
+        // toggle is both snappier and cheaper.
         className={cn(
-          'shrink-0 overflow-hidden transition-[width] duration-150',
+          'shrink-0 overflow-hidden',
           sidebarCollapsed ? 'w-0' : 'w-[272px]',
         )}
       >

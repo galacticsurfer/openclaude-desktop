@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ExternalLink, Loader2, ShieldCheck, Terminal, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, ShieldCheck, XCircle } from 'lucide-react';
 import * as api from '@/services/api';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { openExternal } from '@/lib/external';
+import appIcon from '@/assets/openclaude.png';
 import type { ClaudeCodeStatus } from '@/types';
 
 /**
@@ -47,9 +48,13 @@ export function Welcome({ onDone }: { onDone: () => void }) {
     <div className="flex h-full items-center justify-center overflow-y-auto scroll-thin bg-canvas p-6">
       <div className="w-full max-w-lg py-8">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-accent-soft">
-            <Terminal size={22} className="text-accent" aria-hidden />
-          </div>
+          <img
+            src={appIcon}
+            alt=""
+            width={56}
+            height={56}
+            className="mx-auto mb-4 size-14 rounded-xl shadow-subtle"
+          />
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-ink">
             Welcome to OpenClaude Desktop
           </h1>

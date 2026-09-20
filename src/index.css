@@ -172,6 +172,16 @@
    Rendered Markdown.
    --------------------------------------------------------------------------- */
 
+.sidebar-pane {
+  /* Keeps sidebar layout out of the chat pane's reflow, and out of the
+     window-resize path. */
+  contain: layout paint style;
+}
+
+.conversation-row {
+  contain: layout paint style;
+}
+
 .message-block {
   /* Bound layout and paint work to the message: without this, resizing a
      window with a long transcript reflows every message in it. */

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Switch } from '@/components/ui/Switch';
 import { Group, Row } from '../SettingsDialog';
+import appIcon from '@/assets/openclaude.png';
 import type { AppInfo } from '@/types';
 
 export function AdvancedPanel() {
@@ -157,6 +158,21 @@ export function AdvancedPanel() {
 
       {info && (
         <Group title="About">
+          <div className="flex items-center gap-3 pb-3 pt-1">
+            <img
+              src={appIcon}
+              alt=""
+              width={40}
+              height={40}
+              className="size-10 rounded-lg shadow-subtle"
+            />
+            <div className="min-w-0">
+              <p className="text-[14px] font-medium text-ink">OpenClaude Desktop</p>
+              <p className="text-[12px] text-ink-faint">
+                Version {info.version} · unofficial, open source
+              </p>
+            </div>
+          </div>
           <dl className="space-y-1.5 py-2 text-[12.5px]">
             <PathRow label="Version" value={info.version} />
             <PathRow label="Schema" value={`v${info.schemaVersion}`} />

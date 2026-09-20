@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { Message } from '@/types';
 import { Markdown } from '@/components/markdown/Markdown';
+import { StreamingMarkdown } from '@/components/markdown/StreamingMarkdown';
 import { IconButton } from '@/components/ui/IconButton';
 import { Button } from '@/components/ui/Button';
 import { formatTime, formatTokens } from '@/lib/format';
@@ -120,7 +121,13 @@ export const MessageBubble = memo(function MessageBubble({
         )}
       >
         {text.length > 0 ? (
-          <Markdown live={streaming}>{text}</Markdown>
+          // While streaming, parse only completed blocks; see
+          // StreamingMarkdown for why the whole-string path is O(n²).
+          streaming ? (
+            <StreamingMarkdown>{text}</StreamingMarkdown>
+          ) : (
+            <Markdown>{text}</Markdown>
+          )
         ) : streaming ? (
           <div className="flex items-center gap-2 py-1 text-[13px] text-ink-faint">
             <span className="flex gap-1" aria-hidden>

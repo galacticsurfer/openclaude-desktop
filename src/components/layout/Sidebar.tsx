@@ -12,14 +12,24 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Empty } from '@/components/ui/Empty';
 import { Spinner } from '@/components/ui/Spinner';
 import { ConnectionBadge } from '@/components/sidebar/ConnectionBadge';
+import appIcon from '@/assets/openclaude.png';
 import { useConversationActions } from '@/hooks/useConversationActions';
 import type { ConversationSummary } from '@/types';
 
 export function Sidebar() {
-  const {
-    conversations, projects, currentId, loadingList, generating,
-    open, newConversation, loadConversations, loadProjects,
-  } = useConversationStore();
+  // Selectors, not the whole store: `streams` is replaced on every animation
+  // frame while a reply arrives, and subscribing to it would re-render the
+  // entire sidebar sixty times a second for text it does not display.
+  const conversations = useConversationStore((s) => s.conversations);
+  const projects = useConversationStore((s) => s.projects);
+  const currentId = useConversationStore((s) => s.currentId);
+  const loadingList = useConversationStore((s) => s.loadingList);
+  const generating = useConversationStore((s) => s.generating);
+  const open = useConversationStore((s) => s.open);
+  const newConversation = useConversationStore((s) => s.newConversation);
+  const loadConversations = useConversationStore((s) => s.loadConversations);
+  const loadProjects = useConversationStore((s) => s.loadProjects);
+
   const { openOverlay, activeProjectId, setActiveProject, scope, setScope } = useUIStore();
   const runAction = useConversationActions();
 
@@ -55,9 +65,19 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex h-full w-full flex-col border-r border-line bg-surface"
+      className="sidebar-pane flex h-full w-full flex-col border-r border-line bg-surface"
       aria-label="Conversations"
     >
+      {/* The app's own mark: without this it appears nowhere in the running
+          window, only on the first-run screen nobody sees twice. */}
+      <div className="flex items-center gap-2 px-3 pb-0.5 pt-3">
+        <img src={appIcon} alt="" width={20} height={20} className="size-5 rounded" />
+        <span className="text-[13px] font-semibold tracking-[-0.01em] text-ink">
+          OpenClaude
+        </span>
+        <span className="ml-auto font-mono text-[10px] text-ink-faint">Claude Code</span>
+      </div>
+
       <div className="flex flex-col gap-2 p-2.5 pb-2">
         <button
           type="button"

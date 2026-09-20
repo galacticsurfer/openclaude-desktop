@@ -8,6 +8,7 @@ import { MessageBubble } from './MessageBubble';
 import { Composer } from './Composer';
 import { ModelSelector } from './ModelSelector';
 import { Empty } from '@/components/ui/Empty';
+import appIcon from '@/assets/openclaude.png';
 import { IconButton } from '@/components/ui/IconButton';
 import { Spinner } from '@/components/ui/Spinner';
 import * as api from '@/services/api';
@@ -68,6 +69,7 @@ export function ChatView() {
         <Header onToggleSidebar={toggleSidebar} collapsed={sidebarCollapsed} />
         <div className="flex flex-1 items-center justify-center">
           <Empty
+            image={appIcon}
             icon={MessageSquare}
             title="No conversation open"
             body="Pick one from the sidebar, or start a new chat."

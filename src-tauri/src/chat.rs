@@ -18,6 +18,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// How often streamed text is pushed to the UI.
+///
+/// The backend produces deltas far faster than a screen refreshes, and each
+/// one crossing the IPC bridge costs a serialise plus a webview message. At
+/// ~30ms the text still reads as continuous while the bridge carries a
+/// fraction of the traffic.
+const EMIT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(30);
+
 /// How often the accumulated stream buffer is written to SQLite.
 ///
 /// The tension: too frequent and we do a disk write per token; too rare and a
@@ -526,6 +534,10 @@ async fn run_stream(
     let (mut input_tokens, mut output_tokens) = (None, None);
     let (mut cache_read, mut cache_write) = (None, None);
     let mut last_flush = std::time::Instant::now();
+    // Deltas are batched rather than forwarded one by one; see EMIT_INTERVAL.
+    let mut pending_text = String::new();
+    let mut pending_thinking = String::new();
+    let mut last_emit = std::time::Instant::now();
 
     while let Some(item) = stream.next().await {
         if cancel.load(Ordering::SeqCst) {
@@ -588,27 +600,11 @@ async fn run_stream(
             }
             StreamEvent::TextDelta(chunk) => {
                 text.push_str(&chunk);
-                let _ = app.emit(
-                    EV_DELTA,
-                    StreamDelta {
-                        conversation_id: conversation_id.to_string(),
-                        message_id: message_id.to_string(),
-                        text: chunk,
-                        channel: "text",
-                    },
-                );
+                pending_text.push_str(&chunk);
             }
             StreamEvent::ThinkingDelta(chunk) => {
                 thinking.push_str(&chunk);
-                let _ = app.emit(
-                    EV_DELTA,
-                    StreamDelta {
-                        conversation_id: conversation_id.to_string(),
-                        message_id: message_id.to_string(),
-                        text: chunk,
-                        channel: "thinking",
-                    },
-                );
+                pending_thinking.push_str(&chunk);
             }
             StreamEvent::Completed {
                 stop_reason: sr,
@@ -629,6 +625,17 @@ async fn run_stream(
             }
         }
 
+        if last_emit.elapsed() >= EMIT_INTERVAL {
+            emit_pending(
+                app,
+                conversation_id,
+                message_id,
+                &mut pending_text,
+                &mut pending_thinking,
+            );
+            last_emit = std::time::Instant::now();
+        }
+
         // Periodic durability: a kill -9 now costs at most FLUSH_INTERVAL of text.
         if last_flush.elapsed() >= FLUSH_INTERVAL {
             let t = (!thinking.is_empty()).then_some(thinking.as_str());
@@ -636,6 +643,17 @@ async fn run_stream(
             last_flush = std::time::Instant::now();
         }
     }
+
+    // Whatever is still batched must reach the UI before the message is
+    // marked finished, or the tail of the reply would appear only after the
+    // row is reloaded.
+    emit_pending(
+        app,
+        conversation_id,
+        message_id,
+        &mut pending_text,
+        &mut pending_thinking,
+    );
 
     let cancelled = cancel.load(Ordering::SeqCst);
     let status = if cancelled {
@@ -698,6 +716,30 @@ async fn run_stream(
         maybe_generate_title(app.clone(), state.clone(), conversation_id.to_string());
     }
     Ok(())
+}
+
+/// Send any batched text to the UI and clear the buffers.
+fn emit_pending(
+    app: &AppHandle,
+    conversation_id: &str,
+    message_id: &str,
+    text: &mut String,
+    thinking: &mut String,
+) {
+    for (buf, channel) in [(text, "text"), (thinking, "thinking")] {
+        if buf.is_empty() {
+            continue;
+        }
+        let _ = app.emit(
+            EV_DELTA,
+            StreamDelta {
+                conversation_id: conversation_id.to_string(),
+                message_id: message_id.to_string(),
+                text: std::mem::take(buf),
+                channel,
+            },
+        );
+    }
 }
 
 /// Persist a failure, keeping whatever text arrived, and tell the UI.

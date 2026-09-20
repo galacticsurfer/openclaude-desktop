@@ -10,9 +10,22 @@ import { cn } from '@/lib/cn';
 
 const MAX_ROWS_PX = 280;
 
+const currentIdIsGenerating = (generating: string[], currentId: string | null) =>
+  currentId !== null && generating.includes(currentId);
+
 export function Composer({ disabled }: { disabled?: boolean }) {
-  const { pendingAttachments, send, stop, unstage, stagePaths, stageImage, isGenerating } =
-    useConversationStore();
+  // Selectors again: the composer must not re-render per streamed frame.
+  const pendingAttachments = useConversationStore((s) => s.pendingAttachments);
+  const send = useConversationStore((s) => s.send);
+  const stop = useConversationStore((s) => s.stop);
+  const unstage = useConversationStore((s) => s.unstage);
+  const stagePaths = useConversationStore((s) => s.stagePaths);
+  const stageImage = useConversationStore((s) => s.stageImage);
+  const currentId = useConversationStore((s) => s.currentId);
+  // Membership, not the whole array identity: this flips twice per reply.
+  const generating = useConversationStore((s) =>
+    currentIdIsGenerating(s.generating, s.currentId),
+  );
   const sendKey = useSettingsStore((s) => s.settings?.['general.sendKey'] ?? 'enter');
   const toast = useUIStore((s) => s.toast);
 
@@ -32,7 +45,6 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   // dropped image twice.
   const dragging = useUIStore((s) => s.dragActive);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const generating = isGenerating();
 
   // Grow with content up to a cap, then scroll.
   useEffect(() => {
@@ -43,7 +55,6 @@ export function Composer({ disabled }: { disabled?: boolean }) {
   }, [value]);
 
   // Focus the composer when the conversation changes.
-  const currentId = useConversationStore((s) => s.currentId);
   useEffect(() => {
     if (!disabled) textareaRef.current?.focus();
   }, [currentId, disabled]);
