@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MCP, with permission before execution
+
+- **MCP servers** (stdio, SSE, HTTP), configured in Settings, with tool
+  discovery that grants nothing: a server can be asked what it offers
+  before any of it becomes usable.
+- **Per-tool approval.** A tool with no explicit Allow is never passed to
+  the CLI. A server the user has not enabled is not written into the
+  config at all, so its tools do not exist for that session rather than
+  existing and being refused.
+- **Per-project scope.** A server with no project is global; one bound to a
+  project is invisible elsewhere, and approving a tool inside a project
+  does not grant it outside.
+- **Tool calls in the transcript**, with their arguments, collapsed by
+  default, and marked running, succeeded or failed.
+
+This is a *pre-approval* model, not the just-in-time "allow once" prompt
+originally planned: there is no terminal behind a GUI to answer a prompt, so
+`--permission-prompts none` denies anything that would have asked. Nothing
+can run that has not already been looked at.
+
+### Added — everyday things
+
+- **Find in conversation** (Ctrl+F), literal rather than stemmed, since
+  Ctrl+F is expected to find exactly what was typed.
+- **Edit a message and answer again.** Everything after it is discarded and
+  the reply regenerated — and, crucially, the CLI session holding the
+  removed turns is abandoned rather than resumed, so Claude is not still
+  carrying the original question.
+- **Prompt library** (Ctrl+Shift+L) for message text you retype often.
+- **Conversation tabs**, with Ctrl+W, middle-click and open-in-new-tab.
+- **Artifact side panel** for long code blocks and diagrams. Nothing
+  executes; this is the same content given room to read.
+- **Mermaid diagrams**, lazily loaded, with the source a click away.
+- **System tray** (opt-in) and a **global quick-chat shortcut**, both of
+  which degrade gracefully where the desktop does not support them.
+- **Reasoning indicator.** Claude Code withholds reasoning text in headless
+  mode but reports a token estimate, so the app shows that rather than
+  pretending to have something it does not.
+- **A working indicator per conversation** in the sidebar, so a reply
+  generating in the background is distinguishable from the open one.
+
+### Fixed
+
+- Streamed text is revealed at frame rate rather than in the CLI's
+  ~25-character bursts, which is what made it read as stuttering.
+- The composer regains focus when the window does.
+- The switch thumb no longer paints outside its track.
+- Autoscroll, sidebar and streaming no longer re-render the whole app on
+  every frame.
+
+### Security
+
+- **The built-in tool set is emptied outright** (`--tools ""`) rather than
+  denied item by item. A deny list only denies what it was written against;
+  measured against the real CLI, the baseline reports 27 tools and this
+  reports 0.
+- Removed `search_conversation` and `edit_message`, two IPC commands with
+  no caller — the second of which would have left the CLI session holding
+  a message's original text.
+
 ### Changed — no API billing anywhere
 
 The app no longer has an API credential of any kind. It now talks to Claude
