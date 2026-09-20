@@ -1,8 +1,10 @@
 # Security model
 
 This application is expected to be used with private company code. The design
-assumes the conversation content is sensitive and the API key is the crown
-jewel.
+assumes the conversation content is sensitive. There is no API key to
+protect — the app holds no credentials at all — so the asset being defended
+is the transcript, and the risk being managed is what the app can be made to
+*do* on the user's behalf.
 
 ## Trust boundaries
 

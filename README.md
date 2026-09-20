@@ -25,8 +25,8 @@ Native-feeling, fast, local-first. Not a browser wrapper.
 
 Claude has a first-class desktop app on macOS. Linux does not. This is an
 attempt at one that Linux users would actually prefer to a browser tab —
-built from scratch against the documented Anthropic API, with conversations
-stored locally in SQLite and the API key in your system keyring.
+built from scratch on top of the Claude Code CLI, with conversations stored
+locally in SQLite and no credentials of its own to hold.
 
 It is **not** an Electron shell around claude.ai, and it does not touch
 browser cookies or any private endpoint.
@@ -178,7 +178,8 @@ Standard XDG locations, so backups and dotfile managers just work:
 ~/.cache/openclaude/           regenerable caches
 ```
 
-The API key is in your **system keyring**, never in any of these.
+None of these holds a credential: the app has none. Requests run through the
+Claude Code CLI under the login you already gave it.
 
 ## Privacy and security
 
@@ -221,9 +222,9 @@ drivers:
 WEBKIT_DISABLE_COMPOSITING_MODE=1 openclaude
 ```
 
-**"Key not saved" in the sidebar.** No Secret Service is reachable, so the key
-is held for this session only. Start `gnome-keyring-daemon`, or install a
-keyring for your desktop. We will not silently write it to disk.
+**"Claude Code is not signed in."** Run `claude` in a terminal and sign in
+there. OpenClaude never handles the login itself — it has no credential
+store and no way to prompt for one.
 
 **AppImage fails with a FUSE error.** `sudo apt install libfuse2t64`, or run
 with `--appimage-extract-and-run`.

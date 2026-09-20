@@ -34,15 +34,16 @@ This is also what the development harness uses.
 
 ## No Secret Service available
 
-**Risk.** Headless sessions, minimal window managers, or a broken
-`gnome-keyring` mean no credential store. Naively, the app would either crash
-or silently write the key somewhere unsafe.
+**No longer a risk here, and worth saying why.** An earlier design stored an
+Anthropic API key and had to cope with desktops that offer no credential
+store — headless sessions, minimal window managers, a broken
+`gnome-keyring`. The app now holds no credentials at all: the Claude Code
+CLI owns the login, and OpenClaude never reads it. There is nothing to put
+in a keyring, so a missing Secret Service cannot affect it.
 
-**Mitigation.** `secrets::keyring_available()` probes once. On failure the app
-falls back to memory for the session and says so in the sidebar badge and in
-Settings → Claude. Nothing is written to disk. See
-[SECURITY-MODEL.md](SECURITY-MODEL.md) for why an encrypted-file fallback was
-rejected.
+What replaces it is a different dependency: if the CLI is not signed in,
+nothing works, and the app says so rather than prompting for a credential
+it has no way to store.
 
 ## Wayland vs X11
 

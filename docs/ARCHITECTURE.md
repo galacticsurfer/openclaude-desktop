@@ -4,12 +4,16 @@
 
 The brief proposed Tauri 2 + React + TypeScript + Rust and asked for that to be
 evaluated rather than assumed. It is the right choice here, and the decision
-turns on one thing more than any other: **where the API key lives**.
+turns on one thing more than any other: **how strictly the renderer can be
+kept away from the outside world**. (The evaluation below was written when
+the app still held an API key of its own. It no longer does — the Claude
+Code CLI owns the login — but the reasoning stands, because the renderer is
+still where untrusted model output is displayed.)
 
 | Option | Verdict |
 | --- | --- |
 | **Tauri 2 + React + TS** | **Chosen.** ~10 MB binary, ~90 MB idle RSS, sub-second cold start. The system WebView means no bundled browser. The Rust side owns the backend process, so the renderer needs no network access at all and the CSP can forbid it outright. |
-| Electron + React | Fastest to write, and the ecosystem is unmatched. But it ships a ~150 MB Chromium per app, idles around 250–400 MB, and the renderer is where people naturally put `fetch` — making key isolation a discipline rather than a property enforced by the platform. Rejected on footprint and on that security posture. |
+| Electron + React | Fastest to write, and the ecosystem is unmatched. But it ships a ~150 MB Chromium per app, idles around 250–400 MB, and the renderer is where people naturally put `fetch` — making that isolation a discipline rather than a property enforced by the platform. Rejected on footprint and on that security posture. |
 | Flutter | Excellent rendering and startup. But it draws its own widgets, so it never inherits GTK theming, system fonts, or the desktop's accessibility stack, and Linux desktop support is the least mature target. Markdown and syntax highlighting would be rebuilt from scratch. Rejected. |
 | GTK4 + Rust | The most genuinely native result and the best memory profile. The cost is the UI layer: rich Markdown, streaming text, syntax highlighting and diffing are all hand-built against a much smaller ecosystem. That is a multi-month detour before feature parity. Rejected for Phase 1, and worth revisiting only if the WebView proves limiting. |
 | Qt | Mature and portable, but pulls in a large dependency for a Linux-first app, and the licensing conversation (LGPL dynamic linking, or commercial) is a burden a small open-source project does not need. Rejected. |

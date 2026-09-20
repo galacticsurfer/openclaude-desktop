@@ -58,22 +58,21 @@ Notes that matter to the implementation:
 
 ```text
                     ┌─────────────────────────────────┐
-                    │              🔑                 │
+                    │              ◖C◗                │
                     │  Welcome to OpenClaude Desktop  │
                     │  An unofficial, open-source     │
                     │  Claude client for Linux.       │
                     ├─────────────────────────────────┤
-                    │ Anthropic API key               │
-                    │ ┌─────────────────────────────┐ │
-                    │ │ sk-ant-…                    │ │
-                    │ └─────────────────────────────┘ │
-                    │ Get one from console.anthropic… │
+                    │ ┌─ ✓ ─────────────────────────┐ │
+                    │ │ Claude Code is installed     │ │
+                    │ │ and signed in.               │ │
+                    │ └──────────────────────────────┘ │
                     │                                 │
                     │ ┌─ 🛡 ─────────────────────────┐ │
-                    │ │ Stored in your system        │ │
-                    │ │ keyring. Sent only to        │ │
-                    │ │ api.anthropic.com. No        │ │
-                    │ │ telemetry.                   │ │
+                    │ │ No API key, no billing of    │ │
+                    │ │ its own. Requests run        │ │
+                    │ │ through the CLI as you.      │ │
+                    │ │ No telemetry.                │ │
                     │ └──────────────────────────────┘ │
                     │                                 │
                     │ Name conversations       [ ●─ ] │
@@ -122,16 +121,16 @@ never as HTML — the surrounding text is user and model content.
 ├───────────────┬──────────────────────────────────────────────┤
 │ ⚙ General     │  Claude                                      │
 │ 👁 Appearance │                                              │
-│ ▣ Claude    ◀ │  API key                                     │
-│ ⚡ MCP servers│  ┌ 🛡 Key ending …a1b2 is configured. ──────┐ │
-│ ⊙ Notificat…  │  │    Stored in your system keyring. [Remove]│ │
+│ ▣ Claude    ◀ │  Backend                                     │
+│ ⚡ MCP servers│  ┌ ✓ Claude Code 2.x — signed in. ──────────┐ │
+│ ⊙ Notificat…  │  │   No credentials are held by this app.    │ │
 │ ⌨ Shortcuts   │  └───────────────────────────────────────────┘ │
-│ 🔒 Privacy    │  [ sk-ant-…            ] [Test] [Save]        │
+│ 🔒 Privacy    │  Tools reported by the session: none          │
 │ ⛁ Advanced    │                                              │
 │               │  Models                                      │
-│               │  Default model          [Claude Sonnet 4.5 ▾]│
-│               │  Max response length    [ 8192             ] │
-│               │  Temperature            [ default          ] │
+│               │  Default model          [Sonnet           ▾] │
+│               │  Reasoning effort       [Claude Code default]│
+│               │  Slash commands         48 discovered        │
 │               │                                              │
 │               │  Conversation titles                         │
 │               │  Name automatically              [ ●─ ]      │

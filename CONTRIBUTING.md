@@ -37,11 +37,16 @@ CI runs all of these. Clippy is `-D warnings`, so a warning is a failure.
 
 Not to be difficult — these are the properties the project exists to have:
 
-- **Anything that lets the API key reach the renderer.** There is
-  deliberately no IPC command that returns it, and there must not be.
-- **A test that needs a real API key, or makes a real network call.** Use the
-  `wiremock` harness in `src-tauri/tests/streaming.rs`. A suite that costs
-  money is a suite people stop running.
+- **Anything that gives the app credentials of its own.** It has none, and
+  that is the point: requests run through the Claude Code CLI under the
+  login the user already gave it. There must be no IPC command that can
+  read that login.
+- **A test that spends money or makes a real network call.** Everything in
+  `src-tauri/tests/` runs against an in-memory database and parses recorded
+  CLI output. A suite that costs money is a suite people stop running.
+- **Widening the tool lockdown.** Sessions run with `--tools ""` and
+  `--permission-prompts none`; MCP tools are opt-in per tool. Enabling a
+  tool by default is not a change that will be accepted.
 - **Telemetry, analytics, or crash reporting.** Including opt-in.
 - **Adding `rehype-raw`** or otherwise rendering raw HTML from model output.
 - **Widening the Tauri capabilities** (`fs`, `shell`, `http`) without a
