@@ -25,6 +25,8 @@ pub const REDUCED_MOTION: &str = "appearance.reducedMotion";
 pub const SEND_KEY: &str = "general.sendKey";
 pub const RESTORE_LAST: &str = "general.restoreLastConversation";
 pub const TRAY_ENABLED: &str = "general.trayEnabled";
+/// Desktop-wide hotkey that raises the window. Empty disables it.
+pub const QUICK_CHAT_SHORTCUT: &str = "general.quickChatShortcut";
 
 pub const NOTIFY_ENABLED: &str = "notifications.enabled";
 pub const NOTIFY_MIN_MS: &str = "notifications.minDurationMs";
@@ -58,6 +60,7 @@ pub fn defaults() -> Value {
         SEND_KEY: "enter",
         RESTORE_LAST: true,
         TRAY_ENABLED: false,
+        QUICK_CHAT_SHORTCUT: "",
 
         NOTIFY_ENABLED: true,
         NOTIFY_MIN_MS: 8000,

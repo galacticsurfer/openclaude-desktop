@@ -274,6 +274,8 @@ export interface Settings {
   'general.sendKey': SendKeyPreference;
   'general.restoreLastConversation': boolean;
   'general.trayEnabled': boolean;
+  /** Desktop-wide hotkey that raises the window; empty means none. */
+  'general.quickChatShortcut': string;
 
   'notifications.enabled': boolean;
   'notifications.minDurationMs': number;

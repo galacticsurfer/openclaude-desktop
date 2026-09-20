@@ -41,6 +41,13 @@ export function useStreamEvents(): void {
     register(listen<StreamEndEvent>('chat:end', (e) => store.applyEnd(e.payload)));
 
     register(
+      listen<null>('quick-chat:open', () => {
+        // Raised from the desktop with nothing in mind yet — start a fresh
+        // conversation and put the cursor in it.
+        void useConversationStore.getState().newConversation();
+      }),
+    );
+    register(
       listen<null>('tray:new-conversation', () => {
         void useConversationStore.getState().newConversation();
       }),

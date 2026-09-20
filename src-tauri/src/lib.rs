@@ -22,6 +22,7 @@ pub mod error;
 pub mod export;
 pub mod paths;
 pub mod provider;
+pub mod quick_chat;
 pub mod settings_defaults;
 pub mod state;
 pub mod tray;
@@ -112,6 +113,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(state.clone())
         .setup({
             let state = state.clone();
@@ -123,6 +125,7 @@ pub fn run() {
                     let _ = w.show();
                 }
                 crate::tray::install(app.handle(), &state);
+                crate::quick_chat::install(app.handle(), &state);
                 tracing::info!(
                     version = env!("CARGO_PKG_VERSION"),
                     "OpenClaude Desktop started"
@@ -192,6 +195,7 @@ pub fn run() {
             commands::projects::set_project_archived,
             commands::projects::delete_project,
             // search
+            commands::settings::set_quick_chat_shortcut,
             commands::prompts::list_prompts,
             commands::prompts::create_prompt,
             commands::prompts::update_prompt,

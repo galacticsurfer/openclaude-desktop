@@ -2,6 +2,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { Switch } from '@/components/ui/Switch';
 import { Select } from '@/components/ui/Select';
 import { Group, Row } from '../SettingsDialog';
+import { QuickChatShortcut } from '../QuickChatShortcut';
 import type { SendKeyPreference } from '@/types';
 
 export function GeneralPanel() {
@@ -22,6 +23,11 @@ export function GeneralPanel() {
           onChange={(v) => void set('general.trayEnabled', v)}
           label="Keep running in the system tray"
           description="Closing the window hides it instead of quitting, and a tray icon opens it again. Takes effect after a restart. Some desktops have nowhere to put a tray icon — if none appears, the window closes normally."
+        />
+        <Row
+          label="Quick chat shortcut"
+          description="A desktop-wide key combination that brings OpenClaude forward and starts a new conversation. Needs at least one modifier, and fails loudly if another application already owns it."
+          control={<QuickChatShortcut />}
         />
       </Group>
 

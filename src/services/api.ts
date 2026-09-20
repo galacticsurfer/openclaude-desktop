@@ -161,6 +161,10 @@ export const setProjectArchived = (id: string, archived: boolean) =>
   invoke<void>('set_project_archived', { id, archived });
 export const deleteProject = (id: string) => invoke<void>('delete_project', { id });
 
+/** Claim a desktop-wide quick-chat shortcut; empty clears it. */
+export const setQuickChatShortcut = (accelerator: string) =>
+  invoke<void>('set_quick_chat_shortcut', { accelerator });
+
 // --- prompt library -------------------------------------------------------
 
 export const listPrompts = () => invoke<Prompt[]>('list_prompts');

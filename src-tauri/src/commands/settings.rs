@@ -113,3 +113,27 @@ pub struct ModelListResult {
     /// fresh call, so the UI can label it honestly.
     pub stale: bool,
 }
+
+/// Claim a new desktop-wide quick-chat shortcut, or clear it.
+///
+/// Registering before storing, so a combination the desktop refuses is
+/// reported now rather than silently saved and found broken after a
+/// restart.
+#[tauri::command]
+pub fn set_quick_chat_shortcut(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, std::sync::Arc<crate::state::AppState>>,
+    accelerator: String,
+) -> crate::error::Result<()> {
+    let trimmed = accelerator.trim();
+    if trimmed.is_empty() {
+        crate::quick_chat::unregister_all(&app);
+    } else {
+        crate::quick_chat::register(&app, trimmed)?;
+    }
+    crate::db::repo::settings::set(
+        &state.db.conn(),
+        crate::settings_defaults::QUICK_CHAT_SHORTCUT,
+        &trimmed.to_string(),
+    )
+}
