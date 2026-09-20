@@ -521,6 +521,38 @@ pub fn parse_line(line: &str) -> CliRecord {
             }
         }
 
+        // The completed assistant message repeats each tool_use block with
+        // its arguments filled in — the streamed block start announces the
+        // call before they exist, so this is where they actually arrive.
+        "assistant" => {
+            let blocks = v
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_array());
+            let Some(blocks) = blocks else {
+                return CliRecord::Ignored;
+            };
+            for b in blocks {
+                if b.get("type").and_then(|t| t.as_str()) != Some("tool_use") {
+                    continue;
+                }
+                return CliRecord::Stream(StreamEvent::ToolCall {
+                    id: b
+                        .get("id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    name: b
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    input: b.get("input").cloned(),
+                });
+            }
+            CliRecord::Ignored
+        }
+
         // The CLI reports a finished tool as a synthetic user turn carrying
         // `tool_result` blocks — it is not a stream_event.
         "user" => {
@@ -933,6 +965,30 @@ mod tests {
             temperature: None,
             stop_sequences: vec![],
         }
+    }
+
+    #[test]
+    fn a_completed_assistant_turn_carries_the_tool_arguments() {
+        // The streamed block start announces the call with no arguments;
+        // this is where they arrive, and what makes a call auditable.
+        let line = r#"{"type":"assistant","message":{"role":"assistant","content":
+            [{"type":"tool_use","id":"tu_1","name":"mcp__notes__search",
+              "input":{"query":"quarterly report"}}]}}"#;
+        match parse_line(line) {
+            CliRecord::Stream(StreamEvent::ToolCall { id, name, input }) => {
+                assert_eq!(id, "tu_1");
+                assert_eq!(name, "mcp__notes__search");
+                assert_eq!(input.unwrap()["query"], "quarterly report");
+            }
+            other => panic!("expected a tool call, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_plain_assistant_turn_is_not_a_tool_call() {
+        let line = r#"{"type":"assistant","message":{"role":"assistant","content":
+            [{"type":"text","text":"here you go"}]}}"#;
+        assert_eq!(parse_line(line), CliRecord::Ignored);
     }
 
     #[test]

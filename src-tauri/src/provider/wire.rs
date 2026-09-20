@@ -113,6 +113,9 @@ pub fn map_event(kind: &str, raw: &serde_json::Value) -> Option<StreamEvent> {
                 "tool_use" => Some(StreamEvent::ToolCall {
                     id: b.content_block.id.unwrap_or_default(),
                     name: b.content_block.name.unwrap_or_default(),
+                    // Arguments stream in afterwards; the completed
+                    // assistant message is where they arrive whole.
+                    input: None,
                 }),
                 _ => None,
             }
@@ -227,7 +230,8 @@ mod tests {
             map_event("content_block_start", &raw),
             Some(StreamEvent::ToolCall {
                 id: "tu_1".into(),
-                name: "mcp__notes__search".into()
+                name: "mcp__notes__search".into(),
+                input: None
             })
         );
     }

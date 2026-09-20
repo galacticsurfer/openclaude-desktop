@@ -46,8 +46,11 @@ optional cost estimates, soft-delete with undo, and database backup.
 
 - stdio / SSE / HTTP server configuration, with tool discovery ✅
 - per-tool permissions, enforced before a tool can run ✅
-- tool calls rendered in the transcript, with success or failure ✅
-- per-project server sets — still to do
+- tool calls rendered in the transcript, with their arguments, success or
+  failure ✅
+- per-project server sets ✅ — a server with no project is global; one bound
+  to a project is invisible elsewhere, and approving a tool inside a project
+  does not grant it outside
 - a guided "add a folder" flow over the filesystem server — still to do
 
 **How permission works, and what it is not.** Approval happens *before* a

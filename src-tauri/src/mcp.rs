@@ -66,10 +66,13 @@ pub fn config_for(servers: &[repo::McpServer]) -> Option<Value> {
 /// The file is rewritten per run rather than kept in sync: it must reflect
 /// what is enabled *now*, and a stale file would grant a server the user
 /// just turned off.
-pub fn plan(db: &Db, dir: &std::path::Path) -> Result<McpPlan> {
+pub fn plan(db: &Db, dir: &std::path::Path, project_id: Option<&str>) -> Result<McpPlan> {
     let (servers, allowed) = {
         let conn = db.conn();
-        (repo::list(&conn)?, repo::allowed_tool_names(&conn)?)
+        (
+            repo::for_project(&conn, project_id)?,
+            repo::allowed_tool_names(&conn, project_id)?,
+        )
     };
 
     let Some(config) = config_for(&servers) else {

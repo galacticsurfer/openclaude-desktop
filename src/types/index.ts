@@ -267,6 +267,8 @@ export interface ToolUpdateEvent {
   messageId: string;
   id: string;
   name: string;
+  /** Arguments, once the completed message carries them. */
+  input: unknown;
   /** null while running. */
   ok: boolean | null;
 }
@@ -275,6 +277,8 @@ export interface ToolUpdateEvent {
 export interface ToolCallRecord {
   id: string;
   name: string;
+  /** What the tool was called with. Absent until the reply completes. */
+  input?: unknown;
   ok?: boolean;
 }
 

@@ -350,7 +350,16 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     set((s) => {
       const list = s.toolState[e.messageId] ?? [];
       const at = list.findIndex((t) => t.id === e.id);
-      const entry = { id: e.id, name: e.name, ...(e.ok === null ? {} : { ok: e.ok }) };
+      // Merge rather than replace: the call is announced first without
+      // arguments, then again with them, then once more with its outcome.
+      const prev = at === -1 ? undefined : list[at];
+      const entry: ToolCallRecord = {
+        ...prev,
+        id: e.id,
+        name: e.name || (prev?.name ?? ''),
+        ...(e.input === null || e.input === undefined ? {} : { input: e.input }),
+        ...(e.ok === null ? {} : { ok: e.ok }),
+      };
       const next = at === -1 ? [...list, entry] : list.map((t, i) => (i === at ? entry : t));
       return { toolState: { ...s.toolState, [e.messageId]: next } };
     });

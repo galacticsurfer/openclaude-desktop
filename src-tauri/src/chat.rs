@@ -82,6 +82,8 @@ pub struct ToolUpdate {
     pub message_id: String,
     pub id: String,
     pub name: String,
+    /// Arguments, once the completed message carries them.
+    pub input: Option<serde_json::Value>,
     /// None while running, then the outcome.
     pub ok: Option<bool>,
 }
@@ -391,7 +393,12 @@ fn provider_for(db: &Db, conversation: &Conversation, fresh: bool) -> Result<Cla
     };
     // Tools exist only where the user has enabled a server and approved
     // something on it; otherwise this is empty and the session has none.
-    let mcp = crate::mcp::plan(db, &crate::paths::mcp_dir()).unwrap_or_else(|e| {
+    let mcp = crate::mcp::plan(
+        db,
+        &crate::paths::mcp_dir(),
+        conversation.project_id.as_deref(),
+    )
+    .unwrap_or_else(|e| {
         tracing::warn!(error = %e, "could not prepare MCP config; continuing without tools");
         crate::mcp::McpPlan::default()
     });
@@ -738,7 +745,10 @@ async fn run_stream(
                 // letting a chat window quietly gain file access.
                 let approved = {
                     let conn = db.conn();
-                    repo::mcp::allowed_tool_names(&conn).unwrap_or_default()
+                    let project = repo::conversations::get(&conn, conversation_id)
+                        .ok()
+                        .and_then(|c| c.project_id);
+                    repo::mcp::allowed_tool_names(&conn, project.as_deref()).unwrap_or_default()
                 };
                 let unexpected = crate::provider::claude_code::unexpected_tools(&tools, &approved);
                 if !unexpected.is_empty() {
@@ -801,8 +811,23 @@ async fn run_stream(
                     emit_thinking(app, conversation_id, message_id, thinking_tokens);
                 }
             }
-            StreamEvent::ToolCall { id, name } => {
-                tool_calls.push(serde_json::json!({ "id": id, "name": name }));
+            StreamEvent::ToolCall { id, name, input } => {
+                // The call is announced first without arguments, then
+                // repeated with them — update in place rather than listing
+                // the same call twice.
+                match tool_calls
+                    .iter_mut()
+                    .find(|c| c.get("id").and_then(|v| v.as_str()) == Some(id.as_str()))
+                {
+                    Some(existing) => {
+                        if let Some(args) = input.clone() {
+                            existing["input"] = args;
+                        }
+                    }
+                    None => tool_calls.push(serde_json::json!({
+                        "id": id, "name": name, "input": input
+                    })),
+                }
                 let _ = app.emit(
                     EV_TOOL,
                     ToolUpdate {
@@ -810,6 +835,7 @@ async fn run_stream(
                         message_id: message_id.to_string(),
                         id,
                         name,
+                        input,
                         ok: None,
                     },
                 );
@@ -834,6 +860,7 @@ async fn run_stream(
                         message_id: message_id.to_string(),
                         id,
                         name,
+                        input: None,
                         ok: Some(ok),
                     },
                 );

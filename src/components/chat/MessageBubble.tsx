@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import {
   AlertTriangle, Brain, Check, ChevronDown, ChevronRight, Copy, GitBranch,
-  PauseCircle, Pencil, RefreshCw, Play, Wrench,
+  PauseCircle, Pencil, RefreshCw, Play,
 } from 'lucide-react';
 import type { Message, ToolCallRecord } from '@/types';
 import { Markdown } from '@/components/markdown/Markdown';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { formatTime, formatTokens } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { AttachmentChip } from './AttachmentChip';
+import { ToolCallList } from './ToolCallList';
 
 interface Props {
   message: Message;
@@ -159,26 +160,7 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       )}
 
-      {toolCalls.length > 0 && (
-        <ul className="mb-2 space-y-1">
-          {toolCalls.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-center gap-1.5 rounded-md border border-line bg-sunken/60 px-2.5 py-1 text-[12px]"
-            >
-              <Wrench size={12} className="shrink-0 text-ink-faint" aria-hidden />
-              <code className="min-w-0 flex-1 truncate font-mono text-ink-soft">{t.name}</code>
-              {t.ok === undefined ? (
-                <span className="text-ink-faint">running…</span>
-              ) : t.ok ? (
-                <Check size={12} className="text-success" aria-label="succeeded" />
-              ) : (
-                <AlertTriangle size={12} className="text-danger" aria-label="failed" />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      {toolCalls.length > 0 && <ToolCallList calls={toolCalls} />}
 
       {thinking.length > 0 && (
         <div className="mb-2 overflow-hidden rounded-md border border-line bg-sunken/60">

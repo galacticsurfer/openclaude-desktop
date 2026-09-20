@@ -56,6 +56,21 @@ pub fn list(conn: &Connection) -> Result<Vec<McpServer>> {
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+/// Servers usable by a conversation in `project_id`.
+///
+/// A server with no project is global and available everywhere; one bound
+/// to a project appears only there. Scoping matters because enabling a
+/// server grants its tools to every conversation that can see it.
+pub fn for_project(conn: &Connection, project_id: Option<&str>) -> Result<Vec<McpServer>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COLS} FROM mcp_servers
+          WHERE project_id IS NULL OR project_id = ?1
+          ORDER BY name COLLATE NOCASE"
+    ))?;
+    let rows = stmt.query_map([project_id], map)?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
 pub fn get(conn: &Connection, id: &str) -> Result<McpServer> {
     let mut stmt = conn.prepare(&format!("SELECT {COLS} FROM mcp_servers WHERE id = ?1"))?;
     let mut rows = stmt.query_map([id], map)?;
@@ -158,14 +173,18 @@ pub fn decide(
 }
 
 /// Tool names explicitly allowed, as the CLI names them.
-pub fn allowed_tool_names(conn: &Connection) -> Result<Vec<String>> {
+///
+/// Scoped the same way [`for_project`] is: a server belonging to another
+/// project must not contribute tools to this conversation.
+pub fn allowed_tool_names(conn: &Connection, project_id: Option<&str>) -> Result<Vec<String>> {
     let mut stmt = conn.prepare(
         "SELECT s.name, p.tool_name
            FROM mcp_permissions p
            JOIN mcp_servers s ON s.id = p.server_id
-          WHERE p.decision = 'allow' AND s.enabled = 1",
+          WHERE p.decision = 'allow' AND s.enabled = 1
+            AND (s.project_id IS NULL OR s.project_id = ?1)",
     )?;
-    let rows = stmt.query_map([], |r| {
+    let rows = stmt.query_map([project_id], |r| {
         let server: String = r.get(0)?;
         let tool: String = r.get(1)?;
         Ok(format!("mcp__{server}__{tool}"))

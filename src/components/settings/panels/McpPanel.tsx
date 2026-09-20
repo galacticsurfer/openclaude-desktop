@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/Switch';
 import { Select } from '@/components/ui/Select';
 import { Spinner } from '@/components/ui/Spinner';
 import { openExternal } from '@/lib/external';
+import { useConversationStore } from '@/stores/useConversationStore';
 import type { McpServer, ToolPermission } from '@/types';
 
 /**
@@ -30,6 +31,8 @@ export function McpPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const projects = useConversationStore((st) => st.projects);
+  const projectName = (id: string) => projects.find((p) => p.id === id)?.name;
 
   async function refresh() {
     try {
@@ -110,6 +113,11 @@ export function McpPanel() {
                 {expanded === s.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <span className="truncate text-[13.5px] font-medium text-ink">{s.name}</span>
                 <span className="font-mono text-[11px] text-ink-faint">{s.transport}</span>
+                <span className="text-[11px] text-ink-faint">
+                  {s.projectId === null
+                    ? 'all conversations'
+                    : (projectName(s.projectId) ?? 'one project')}
+                </span>
                 {allowedCount(s.id) > 0 && (
                   <span className="rounded bg-accent-soft px-1.5 py-px text-[11px] text-accent">
                     {allowedCount(s.id)} allowed
@@ -217,6 +225,8 @@ export function McpPanel() {
 
 function AddServer({ onCancel, onAdded }: { onCancel: () => void; onAdded: () => void }) {
   const toast = useUIStore((s) => s.toast);
+  const projects = useConversationStore((s) => s.projects);
+  const [projectId, setProjectId] = useState('');
   const [name, setName] = useState('');
   const [transport, setTransport] = useState<'stdio' | 'sse' | 'http'>('stdio');
   const [command, setCommand] = useState('');
@@ -234,7 +244,7 @@ function AddServer({ onCancel, onAdded }: { onCancel: () => void; onAdded: () =>
         args: args.split(/\s+/).filter(Boolean),
         env: {},
         url: url.trim() === '' ? null : url.trim(),
-        projectId: null,
+        projectId: projectId === '' ? null : projectId,
       });
       onAdded();
     } catch (err) {
@@ -300,6 +310,26 @@ function AddServer({ onCancel, onAdded }: { onCancel: () => void; onAdded: () =>
           />
         </label>
       )}
+
+      <label className="block">
+        <span className="mb-1 block text-[12.5px] text-ink-soft">Available in</span>
+        <Select
+          value={projectId}
+          aria-label="Which conversations may use this server"
+          onChange={(e) => setProjectId(e.target.value)}
+        >
+          <option value="">All conversations</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              Only the “{p.name}” project
+            </option>
+          ))}
+        </Select>
+        <span className="mt-1 block text-[12px] text-ink-faint">
+          Enabling a server grants its approved tools to every conversation that can see it.
+          Scoping it to a project keeps it out of the rest.
+        </span>
+      </label>
 
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={onCancel}>

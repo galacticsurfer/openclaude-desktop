@@ -376,3 +376,130 @@ fn editing_a_prompt_that_is_gone_is_an_error_not_a_silent_no_op() {
     let db = db();
     assert!(repo::prompts::update(&db.conn(), "nope", "t", "b").is_err());
 }
+
+// --- MCP scoping ----------------------------------------------------------
+
+#[test]
+fn a_project_server_is_invisible_to_other_projects() {
+    let db = db();
+    let conn = db.conn();
+    let p = repo::projects::create(
+        &conn,
+        repo::projects::ProjectInput {
+            name: "Work".into(),
+            description: String::new(),
+            instructions: String::new(),
+            working_dir: None,
+            default_model: None,
+            color: None,
+        },
+    )
+    .unwrap();
+
+    let global = repo::mcp::NewMcpServer {
+        name: "shared".into(),
+        transport: "stdio".into(),
+        command: "/bin/true".into(),
+        args: vec![],
+        env: Default::default(),
+        url: None,
+        project_id: None,
+    };
+    let scoped = repo::mcp::NewMcpServer {
+        name: "workonly".into(),
+        project_id: Some(p.id.clone()),
+        ..global.clone()
+    };
+    repo::mcp::create(&conn, &global).unwrap();
+    repo::mcp::create(&conn, &scoped).unwrap();
+
+    // A conversation with no project sees only the global server.
+    let names: Vec<String> = repo::mcp::for_project(&conn, None)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    assert_eq!(names, vec!["shared"]);
+
+    // Inside the project, both.
+    let names: Vec<String> = repo::mcp::for_project(&conn, Some(&p.id))
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    assert_eq!(names, vec!["shared", "workonly"]);
+}
+
+#[test]
+fn an_approved_tool_does_not_leak_out_of_its_project() {
+    let db = db();
+    let conn = db.conn();
+    let p = repo::projects::create(
+        &conn,
+        repo::projects::ProjectInput {
+            name: "Work".into(),
+            description: String::new(),
+            instructions: String::new(),
+            working_dir: None,
+            default_model: None,
+            color: None,
+        },
+    )
+    .unwrap();
+
+    let s = repo::mcp::create(
+        &conn,
+        &repo::mcp::NewMcpServer {
+            name: "workonly".into(),
+            transport: "stdio".into(),
+            command: "/bin/true".into(),
+            args: vec![],
+            env: Default::default(),
+            url: None,
+            project_id: Some(p.id.clone()),
+        },
+    )
+    .unwrap();
+    repo::mcp::set_enabled(&conn, &s.id, true).unwrap();
+    repo::mcp::decide(&conn, &s.id, "search", "tool", "allow").unwrap();
+
+    assert_eq!(
+        repo::mcp::allowed_tool_names(&conn, Some(&p.id)).unwrap(),
+        vec!["mcp__workonly__search"]
+    );
+    // Granting a tool inside a project must not grant it everywhere.
+    assert!(repo::mcp::allowed_tool_names(&conn, None)
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn a_disabled_server_contributes_no_tools_even_when_approved() {
+    let db = db();
+    let conn = db.conn();
+    let s = repo::mcp::create(
+        &conn,
+        &repo::mcp::NewMcpServer {
+            name: "notes".into(),
+            transport: "stdio".into(),
+            command: "/bin/true".into(),
+            args: vec![],
+            env: Default::default(),
+            url: None,
+            project_id: None,
+        },
+    )
+    .unwrap();
+    repo::mcp::decide(&conn, &s.id, "search", "tool", "allow").unwrap();
+
+    // Approved, but the server is off.
+    assert!(repo::mcp::allowed_tool_names(&conn, None)
+        .unwrap()
+        .is_empty());
+
+    repo::mcp::set_enabled(&conn, &s.id, true).unwrap();
+    assert_eq!(
+        repo::mcp::allowed_tool_names(&conn, None).unwrap(),
+        vec!["mcp__notes__search"]
+    );
+}
