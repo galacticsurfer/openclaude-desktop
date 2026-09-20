@@ -67,13 +67,24 @@ sudo apt install libfuse2t64
 ./OpenClaude\ Desktop_0.1.0_amd64.AppImage --appimage-extract-and-run
 ```
 
+## Installing without root
+
+`scripts/install-user.sh` unpacks the `.deb` into `~/.local` and registers it
+through the XDG directories. Useful on a locked-down machine, and for testing
+a build without touching the system. `--uninstall` reverses it, leaving your
+conversations and settings in place.
+
+It clears previously installed icons before copying: the set of sizes can
+change between versions, and a leftover file in an old directory would keep
+being picked up by the icon theme.
+
 ## Desktop integration
 
 The `.deb` installs:
 
 - `/usr/bin/openclaude-desktop`
 - `/usr/share/applications/dev.openclaude.desktop.desktop`
-- `/usr/share/icons/hicolor/{32x32,128x128,256x256@2}/apps/…`
+- `/usr/share/icons/hicolor/{16x16,24x24,32x32,48x48,64x64,128x128,256x256,512x512}/apps/openclaude.png`
 - `/usr/share/metainfo/dev.openclaude.desktop.metainfo.xml` — AppStream data,
   so GNOME Software and Discover show a proper entry
 

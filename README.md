@@ -63,6 +63,21 @@ browser cookies or any private endpoint.
 sudo apt install ./OpenClaude\ Desktop_0.1.0_amd64.deb
 ```
 
+### Without root
+
+If you cannot (or would rather not) use `sudo`, the same `.deb` can be
+unpacked into your home directory — its only dependencies are WebKitGTK,
+GTK 3 and libayatana-appindicator, which a desktop system already has:
+
+```bash
+./scripts/install-user.sh                 # installs into ~/.local
+./scripts/install-user.sh --uninstall     # and removes it again
+```
+
+This puts the binary in `~/.local/bin`, registers a launcher in
+`~/.local/share/applications`, and installs the full icon set, so it shows up
+in your application menu like any other app.
+
 ### AppImage (any distribution)
 
 ```bash
