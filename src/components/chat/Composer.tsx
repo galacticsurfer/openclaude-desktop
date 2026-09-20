@@ -72,6 +72,48 @@ export function Composer({ disabled }: { disabled?: boolean }) {
     if (!disabled) textareaRef.current?.focus();
   }, [currentId, disabled]);
 
+  // …and when the window itself comes back. Alt-tabbing away and back left
+  // focus on nothing, so the first keystroke went into the void.
+  //
+  // Guarded rather than unconditional: returning to a window with a dialog
+  // open, or with the sidebar filter half-typed, must not yank the caret
+  // out from under the user. Only an unfocused document gets the composer.
+  useEffect(() => {
+    function onWindowFocus() {
+      if (disabled) return;
+      const active = document.activeElement;
+      const parked = active === null || active === document.body;
+      if (!parked) return;
+      // A modal traps focus deliberately; leave it alone.
+      if (document.querySelector('[role="dialog"]')) return;
+      textareaRef.current?.focus();
+    }
+
+    window.addEventListener('focus', onWindowFocus);
+
+    // The DOM event covers focus moving within the page, but WebKitGTK does
+    // not reliably raise it when the *OS* window is activated. Tauri's own
+    // event is authoritative for that, and focusing twice is harmless.
+    let unlisten: (() => void) | undefined;
+    let dropped = false;
+    void import('@tauri-apps/api/window').then(({ getCurrentWindow }) =>
+      getCurrentWindow()
+        .onFocusChanged(({ payload: focused }) => {
+          if (focused) onWindowFocus();
+        })
+        .then((un) => {
+          if (dropped) un();
+          else unlisten = un;
+        }),
+    );
+
+    return () => {
+      dropped = true;
+      unlisten?.();
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, [disabled]);
+
   const submit = useCallback(async () => {
     const text = value.trim();
     if ((text === '' && pendingAttachments.length === 0) || generating || busy) return;
