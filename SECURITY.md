@@ -65,13 +65,30 @@ These are documented properties, not bugs. They are covered in
 
 ## Security practices in this project
 
-- The API key is never written to the database, a config file, or a log, and
-  there is no IPC command that returns it.
+- The app holds no credentials at all. There is no API key to leak: every
+  request runs through the Claude Code CLI under the login you already gave
+  it, and no IPC command can read that login.
 - The renderer has no network access (`connect-src 'self'`), no filesystem
   access, and no shell access.
 - Model output is rendered without raw HTML.
 - No telemetry, analytics, or crash reporting.
 - Dependencies are kept deliberately few; `cargo audit` and `npm audit` run
   in CI.
+- **A known `npm audit` finding, assessed and accepted.** Mermaid (diagram
+  rendering) depends on `chevrotain` and `dagre-d3-es`, which depend on
+  `lodash-es`. `npm audit` reports five high-severity advisories there,
+  against `_.template` (code injection) and `_.unset` / `_.omit` (prototype
+  pollution). No patched `lodash-es` exists as of mermaid 12.0.0.
+
+  Those functions are not reachable here. The dependency chain imports
+  lodash-es per function, and none of it imports `template`, `unset` or
+  `omit`; the only overlap with the advisories is `merge`, which they do not
+  cover. Tree-shaking then keeps the vulnerable code out of the build
+  entirely — the shipped bundle contains neither `_.template`'s error
+  strings nor its `sourceURL` handling. Re-check this if mermaid's
+  dependencies change.
+
+  Diagrams are additionally rendered with mermaid's `securityLevel: 'strict'`,
+  and never while a reply is still streaming.
 - Automatic updates are disabled and will remain so until signing keys and a
   published policy exist.

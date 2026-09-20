@@ -2,6 +2,7 @@ import { memo, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './CodeBlock';
+import { Mermaid } from './Mermaid';
 import { openExternal } from '@/lib/external';
 
 interface Props {
@@ -43,7 +44,11 @@ export const Markdown = memo(function Markdown({ children, live }: Props) {
         );
       }
       return (
-        <CodeBlock code={raw.replace(/\n$/, '')} language={match?.[1]} live={live} />
+        match?.[1] === 'mermaid' && !live ? (
+          <Mermaid code={raw.replace(/\n$/, '')} />
+        ) : (
+          <CodeBlock code={raw.replace(/\n$/, '')} language={match?.[1]} live={live} />
+        )
       );
     },
 

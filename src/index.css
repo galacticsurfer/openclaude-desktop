@@ -335,3 +335,10 @@ mark.hit {
   border-radius: 2px;
   padding: 0 1px;
 }
+
+/* Mermaid bakes its own sizing into the SVG; keep it inside the message
+   column and let wide diagrams scroll rather than widen the page. */
+.mermaid-figure svg {
+  max-width: 100%;
+  height: auto;
+}
