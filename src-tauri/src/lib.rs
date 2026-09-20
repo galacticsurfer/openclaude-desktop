@@ -210,7 +210,6 @@ pub fn run() {
             commands::prompts::delete_prompt,
             commands::prompts::mark_prompt_used,
             commands::search::search_all,
-            commands::search::search_conversation,
             commands::search::rebuild_search_index,
             // attachments
             commands::attachments::add_attachments,

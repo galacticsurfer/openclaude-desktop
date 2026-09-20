@@ -200,8 +200,6 @@ export const markPromptUsed = (id: string) => invoke<void>('mark_prompt_used', {
 
 export const searchAll = (query: string, limit = 50) =>
   invoke<SearchHit[]>('search_all', { query, limit });
-export const searchConversation = (conversationId: string, query: string, limit = 100) =>
-  invoke<SearchHit[]>('search_conversation', { conversationId, query, limit });
 export const rebuildSearchIndex = () => invoke<void>('rebuild_search_index');
 
 // --- attachments ----------------------------------------------------------

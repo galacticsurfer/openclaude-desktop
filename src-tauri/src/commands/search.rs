@@ -15,21 +15,6 @@ pub fn search_all(
 }
 
 #[tauri::command]
-pub fn search_conversation(
-    state: State<'_, Arc<AppState>>,
-    conversation_id: String,
-    query: String,
-    limit: Option<i64>,
-) -> Result<Vec<SearchHit>> {
-    repo::search_in_conversation(
-        &state.db.conn(),
-        &conversation_id,
-        &query,
-        limit.unwrap_or(100).clamp(1, 500),
-    )
-}
-
-#[tauri::command]
 pub fn rebuild_search_index(state: State<'_, Arc<AppState>>) -> Result<()> {
     repo::rebuild_indexes(&state.db.conn())
 }

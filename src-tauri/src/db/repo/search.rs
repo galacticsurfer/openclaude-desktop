@@ -108,33 +108,6 @@ pub fn search(conn: &Connection, query: &str, limit: i64) -> Result<Vec<SearchHi
     Ok(rows)
 }
 
-/// Matches within a single conversation, for in-conversation find.
-pub fn search_in_conversation(
-    conn: &Connection,
-    conversation_id: &str,
-    query: &str,
-    limit: i64,
-) -> Result<Vec<SearchHit>> {
-    let Some(m) = build_match_query(query) else {
-        return Ok(Vec::new());
-    };
-    let mut stmt = conn.prepare(
-        "SELECT c.id, c.title, m.id, 'message', m.role,
-                snippet(messages_fts, 0, '<<', '>>', '…', 18),
-                m.created_at, bm25(messages_fts)
-           FROM messages_fts
-           JOIN messages m ON m.rowid = messages_fts.rowid
-           JOIN conversations c ON c.id = m.conversation_id
-          WHERE messages_fts MATCH ?1 AND m.conversation_id = ?2
-          ORDER BY m.seq
-          LIMIT ?3",
-    )?;
-    let rows = stmt
-        .query_map(params![m, conversation_id, limit], hit)?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(rows)
-}
-
 /// Rebuild the FTS indexes from their content tables.
 /// Offered in Settings → Advanced if search ever looks stale.
 pub fn rebuild_indexes(conn: &Connection) -> Result<()> {
