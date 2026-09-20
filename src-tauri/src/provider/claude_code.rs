@@ -84,10 +84,13 @@ const DISALLOWED_TOOLS: &[&str] = &[
 ///
 /// A chat window claims it cannot touch your files; this is what keeps that
 /// claim honest when the CLI gains a tool after this was written.
-pub fn unexpected_tools(reported: &[String]) -> Vec<String> {
+/// `approved` are the MCP tools the user has explicitly allowed, which are
+/// therefore expected to be present and are not holes.
+pub fn unexpected_tools(reported: &[String], approved: &[String]) -> Vec<String> {
     reported
         .iter()
         .filter(|t| !DISALLOWED_TOOLS.contains(&t.as_str()))
+        .filter(|t| !approved.iter().any(|a| a == *t))
         .cloned()
         .collect()
 }
@@ -168,6 +171,68 @@ pub fn parse_model_output(text: &str) -> ModelCatalog {
     catalog
 }
 
+/// Ask one MCP server what tools it offers.
+///
+/// Configured alone and with nothing allowed, so the probe can discover
+/// names without any of them becoming usable. `--tools ""` still empties
+/// the built-in set, so whatever comes back belongs to this server.
+pub async fn discover_mcp_tools(
+    server: &crate::db::repo::mcp::McpServer,
+) -> crate::error::Result<Vec<String>> {
+    // Enabled for the probe regardless of its stored state: the user is
+    // asking what is in there, not turning it on.
+    let mut probe = server.clone();
+    probe.enabled = true;
+    let Some(config) = crate::mcp::config_for(std::slice::from_ref(&probe)) else {
+        return Ok(Vec::new());
+    };
+
+    let dir = crate::paths::mcp_dir();
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join("probe-config.json");
+    std::fs::write(&path, serde_json::to_vec_pretty(&config)?)?;
+
+    let out = Command::new(CLAUDE_BIN)
+        .arg("--print")
+        .arg("--output-format")
+        .arg("stream-json")
+        .arg("--verbose")
+        .arg("--no-session-persistence")
+        .arg("--tools")
+        .arg("")
+        .arg("--strict-mcp-config")
+        .arg("--mcp-config")
+        .arg(&path)
+        .arg("--permission-prompts")
+        .arg("none")
+        .arg("--permission-mode")
+        .arg("dontAsk")
+        .arg("/status")
+        .current_dir(std::env::temp_dir())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .output()
+        .await?;
+
+    let _ = std::fs::remove_file(&path);
+
+    let mut tools = Vec::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        if let CliRecord::Init { tools: t, .. } = parse_line(line) {
+            tools = t;
+            break;
+        }
+    }
+    // Report the bare tool names; the `mcp__server__` prefix is ours to add.
+    let prefix = format!("mcp__{}__", server.name);
+    Ok(tools
+        .into_iter()
+        .filter_map(|t| t.strip_prefix(&prefix).map(str::to_owned))
+        .collect())
+}
+
 /// Ask the CLI which models it accepts.
 ///
 /// `/model` is answered locally — a recorded run reports zero input and
@@ -211,6 +276,8 @@ pub struct ClaudeCodeProvider {
     session: SessionRef,
     /// Reasoning depth, when the user has chosen one.
     effort: Option<String>,
+    /// MCP servers and approved tools. Empty means no tools whatsoever.
+    mcp: crate::mcp::McpPlan,
 }
 
 #[derive(Debug, Clone)]
@@ -232,7 +299,17 @@ impl ClaudeCodeProvider {
             cwd,
             session,
             effort: None,
+            mcp: crate::mcp::McpPlan::default(),
         }
+    }
+
+    /// Enabled MCP servers and the tools approved for them.
+    ///
+    /// Empty by default: a chat window has no tools unless the user has
+    /// turned a server on *and* approved something on it.
+    pub fn with_mcp(mut self, plan: crate::mcp::McpPlan) -> Self {
+        self.mcp = plan;
+        self
     }
 
     /// `--effort` trades thoroughness against speed and token spend.
@@ -261,6 +338,8 @@ impl ClaudeCodeProvider {
             .arg(DISALLOWED_TOOLS.join(" "))
             // Without this, every configured MCP server's tools stay live —
             // for this user that included one that can delete documents.
+            // Only the servers the user enabled, in a file written for this
+            // run — never the CLI's own global MCP configuration.
             .arg("--strict-mcp-config")
             // No TTY here, so a permission prompt would hang forever.
             // `none` denies anything that would have prompted instead.
@@ -272,6 +351,15 @@ impl ClaudeCodeProvider {
             // content block. Plain text stdin would flatten them away.
             .arg("--input-format")
             .arg("stream-json");
+
+        if let Some(config) = &self.mcp.config {
+            cmd.arg("--mcp-config").arg(config);
+            // Nothing is usable without being named here: an approved tool
+            // is an opt-in, and everything else stays denied.
+            if !self.mcp.allowed.is_empty() {
+                cmd.arg("--allowedTools").arg(self.mcp.allowed.join(","));
+            }
+        }
 
         if !req.model.trim().is_empty() {
             cmd.arg("--model").arg(&req.model);
@@ -431,6 +519,33 @@ pub fn parse_line(line: &str) -> CliRecord {
                 Some(n) => CliRecord::Stream(StreamEvent::ThinkingProgress(n)),
                 None => CliRecord::Ignored,
             }
+        }
+
+        // The CLI reports a finished tool as a synthetic user turn carrying
+        // `tool_result` blocks — it is not a stream_event.
+        "user" => {
+            let blocks = v
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_array());
+            let Some(blocks) = blocks else {
+                return CliRecord::Ignored;
+            };
+            for b in blocks {
+                if b.get("type").and_then(|t| t.as_str()) != Some("tool_result") {
+                    continue;
+                }
+                return CliRecord::Stream(StreamEvent::ToolResult {
+                    id: b
+                        .get("tool_use_id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    // Absent means success; the CLI only sets it on failure.
+                    ok: !b.get("is_error").and_then(|e| e.as_bool()).unwrap_or(false),
+                });
+            }
+            CliRecord::Ignored
         }
 
         "stream_event" => {
@@ -821,6 +936,36 @@ mod tests {
     }
 
     #[test]
+    fn a_tool_result_turn_reports_success_and_failure() {
+        let ok = r#"{"type":"user","message":{"role":"user","content":
+            [{"type":"tool_result","tool_use_id":"tu_1","content":"done"}]}}"#;
+        assert_eq!(
+            parse_line(ok),
+            CliRecord::Stream(StreamEvent::ToolResult {
+                id: "tu_1".into(),
+                ok: true
+            })
+        );
+
+        let failed = r#"{"type":"user","message":{"role":"user","content":
+            [{"type":"tool_result","tool_use_id":"tu_2","is_error":true,"content":"nope"}]}}"#;
+        assert_eq!(
+            parse_line(failed),
+            CliRecord::Stream(StreamEvent::ToolResult {
+                id: "tu_2".into(),
+                ok: false
+            })
+        );
+    }
+
+    #[test]
+    fn an_ordinary_user_turn_is_not_mistaken_for_a_tool_result() {
+        let line = r#"{"type":"user","message":{"role":"user","content":
+            [{"type":"text","text":"hello"}]}}"#;
+        assert_eq!(parse_line(line), CliRecord::Ignored);
+    }
+
+    #[test]
     fn a_thinking_tokens_system_record_reports_the_running_total() {
         let line = r#"{"type":"system","subtype":"thinking_tokens",
             "estimated_tokens":162,"estimated_tokens_delta":112,"session_id":"s"}"#;
@@ -959,15 +1104,33 @@ mod tests {
     fn the_lockdown_is_checked_against_what_the_session_reports() {
         // Everything we deny is expected; anything else is a hole a CLI
         // upgrade opened, and must be reported rather than ignored.
-        assert!(unexpected_tools(&[]).is_empty());
-        assert!(unexpected_tools(&["Bash".into(), "Read".into(), "Skill".into()]).is_empty());
+        assert!(unexpected_tools(&[], &[]).is_empty());
+        assert!(unexpected_tools(&["Bash".into(), "Read".into(), "Skill".into()], &[]).is_empty());
 
-        let holes = unexpected_tools(&[
-            "Read".into(),
-            "SomeNewTool".into(),
-            "mcp__server__do_thing".into(),
-        ]);
+        let holes = unexpected_tools(
+            &[
+                "Read".into(),
+                "SomeNewTool".into(),
+                "mcp__server__do_thing".into(),
+            ],
+            &[],
+        );
         assert_eq!(holes, vec!["SomeNewTool", "mcp__server__do_thing"]);
+    }
+
+    #[test]
+    fn an_approved_mcp_tool_is_expected_rather_than_a_hole() {
+        // Once the user enables a server and approves a tool, its presence
+        // is the feature working — but anything they did not approve is
+        // still a hole, even on the same server.
+        let holes = unexpected_tools(
+            &[
+                "mcp__notes__search".into(),
+                "mcp__notes__delete_everything".into(),
+            ],
+            &["mcp__notes__search".to_string()],
+        );
+        assert_eq!(holes, vec!["mcp__notes__delete_everything"]);
     }
 
     #[test]

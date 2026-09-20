@@ -6,6 +6,7 @@ import type {
   StreamEndEvent,
   StreamStartEvent,
   ThinkingUpdateEvent,
+  ToolUpdateEvent,
 } from '@/types';
 
 /**
@@ -38,6 +39,7 @@ export function useStreamEvents(): void {
     register(
       listen<ThinkingUpdateEvent>('chat:thinking', (e) => store.applyThinking(e.payload)),
     );
+    register(listen<ToolUpdateEvent>('chat:tool', (e) => store.applyTool(e.payload)));
     register(listen<StreamEndEvent>('chat:end', (e) => store.applyEnd(e.payload)));
 
     register(

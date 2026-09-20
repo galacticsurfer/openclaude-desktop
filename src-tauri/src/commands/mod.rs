@@ -7,6 +7,7 @@
 pub mod attachments;
 pub mod chat;
 pub mod conversations;
+pub mod mcp;
 pub mod projects;
 pub mod prompts;
 pub mod search;

@@ -54,6 +54,8 @@ struct BlockStart {
 struct StartedBlock {
     #[serde(rename = "type")]
     kind: String,
+    id: Option<String>,
+    name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -106,7 +108,14 @@ pub fn map_event(kind: &str, raw: &serde_json::Value) -> Option<StreamEvent> {
         }
         "content_block_start" => {
             let b: BlockStart = serde_json::from_value(raw.clone()).ok()?;
-            (b.content_block.kind == "thinking").then_some(StreamEvent::ThinkingStarted)
+            match b.content_block.kind.as_str() {
+                "thinking" => Some(StreamEvent::ThinkingStarted),
+                "tool_use" => Some(StreamEvent::ToolCall {
+                    id: b.content_block.id.unwrap_or_default(),
+                    name: b.content_block.name.unwrap_or_default(),
+                }),
+                _ => None,
+            }
         }
         "message_delta" => {
             let d: MessageDelta = serde_json::from_value(raw.clone()).ok()?;
@@ -208,6 +217,18 @@ mod tests {
         assert_eq!(
             map_event("content_block_delta", &thinking),
             Some(StreamEvent::ThinkingDelta("hmm".into()))
+        );
+    }
+
+    #[test]
+    fn a_tool_call_is_reported_with_its_name_and_id() {
+        let raw = json!({"content_block": {"type": "tool_use", "id": "tu_1", "name": "mcp__notes__search"}});
+        assert_eq!(
+            map_event("content_block_start", &raw),
+            Some(StreamEvent::ToolCall {
+                id: "tu_1".into(),
+                name: "mcp__notes__search".into()
+            })
         );
     }
 

@@ -1,9 +1,9 @@
 import { memo, useState } from 'react';
 import {
   AlertTriangle, Brain, Check, ChevronDown, ChevronRight, Copy, GitBranch,
-  PauseCircle, Pencil, RefreshCw, Play,
+  PauseCircle, Pencil, RefreshCw, Play, Wrench,
 } from 'lucide-react';
-import type { Message } from '@/types';
+import type { Message, ToolCallRecord } from '@/types';
 import { Markdown } from '@/components/markdown/Markdown';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { StreamingMarkdown } from '@/components/markdown/StreamingMarkdown';
@@ -21,6 +21,8 @@ interface Props {
   thinkingState: { tokens: number | null } | null;
   /** True when this is the match the find bar is currently sitting on. */
   matched?: boolean;
+  /** Tool calls in flight, while this reply is live. */
+  toolState?: ToolCallRecord[];
   isLast: boolean;
   onRetry: () => void;
   onContinue: () => void;
@@ -40,6 +42,7 @@ export const MessageBubble = memo(function MessageBubble({
   stream,
   thinkingState,
   matched = false,
+  toolState,
   isLast,
   onRetry,
   onContinue,
@@ -64,6 +67,12 @@ export const MessageBubble = memo(function MessageBubble({
   // number persisted on the message once the reply is finished.
   const thinkingTokens = thinkingState?.tokens ?? m.thinkingTokens;
   const reasoning = thinkingState !== null || (m.thinkingTokens ?? 0) > 0;
+  // Live while streaming, then from what was stored with the message.
+  const toolCalls: ToolCallRecord[] =
+    toolState ??
+    (Array.isArray((m.metadata as { toolCalls?: unknown })?.toolCalls)
+      ? ((m.metadata as { toolCalls: ToolCallRecord[] }).toolCalls)
+      : []);
 
   function copy() {
     onCopy(text);
@@ -148,6 +157,27 @@ export const MessageBubble = memo(function MessageBubble({
             </>
           )}
         </div>
+      )}
+
+      {toolCalls.length > 0 && (
+        <ul className="mb-2 space-y-1">
+          {toolCalls.map((t) => (
+            <li
+              key={t.id}
+              className="flex items-center gap-1.5 rounded-md border border-line bg-sunken/60 px-2.5 py-1 text-[12px]"
+            >
+              <Wrench size={12} className="shrink-0 text-ink-faint" aria-hidden />
+              <code className="min-w-0 flex-1 truncate font-mono text-ink-soft">{t.name}</code>
+              {t.ok === undefined ? (
+                <span className="text-ink-faint">running…</span>
+              ) : t.ok ? (
+                <Check size={12} className="text-success" aria-label="succeeded" />
+              ) : (
+                <AlertTriangle size={12} className="text-danger" aria-label="failed" />
+              )}
+            </li>
+          ))}
+        </ul>
       )}
 
       {thinking.length > 0 && (

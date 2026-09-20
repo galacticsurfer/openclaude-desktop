@@ -63,6 +63,12 @@ pub fn session_dir() -> PathBuf {
     data_dir().join("sessions")
 }
 
+/// Where the per-run MCP config is written. State, not config: it is
+/// generated from the database, never edited by hand.
+pub fn mcp_dir() -> PathBuf {
+    state_dir().join("mcp")
+}
+
 pub fn log_dir() -> PathBuf {
     state_dir().join("logs")
 }

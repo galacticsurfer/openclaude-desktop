@@ -73,9 +73,23 @@ pub struct ThinkingUpdate {
     pub tokens: Option<i64>,
 }
 
+/// A tool call, as it happens. Also stored on the message so the record
+/// survives a reload — a tool that ran is history, not a transient.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolUpdate {
+    pub conversation_id: String,
+    pub message_id: String,
+    pub id: String,
+    pub name: String,
+    /// None while running, then the outcome.
+    pub ok: Option<bool>,
+}
+
 pub const EV_START: &str = "chat:start";
 pub const EV_DELTA: &str = "chat:delta";
 pub const EV_THINKING: &str = "chat:thinking";
+pub const EV_TOOL: &str = "chat:tool";
 pub const EV_END: &str = "chat:end";
 pub const EV_CONVERSATION: &str = "conversation:updated";
 pub const EV_TITLE: &str = "conversation:title";
@@ -375,7 +389,18 @@ fn provider_for(db: &Db, conversation: &Conversation, fresh: bool) -> Result<Cla
         let conn = db.conn();
         repo::settings::get_or(&conn, sk::EFFORT, None)
     };
-    Ok(ClaudeCodeProvider::new(working_dir(db, conversation), session).with_effort(effort))
+    // Tools exist only where the user has enabled a server and approved
+    // something on it; otherwise this is empty and the session has none.
+    let mcp = crate::mcp::plan(db, &crate::paths::mcp_dir()).unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "could not prepare MCP config; continuing without tools");
+        crate::mcp::McpPlan::default()
+    });
+
+    Ok(
+        ClaudeCodeProvider::new(working_dir(db, conversation), session)
+            .with_effort(effort)
+            .with_mcp(mcp),
+    )
 }
 
 /// Append a user turn and start generating a reply.
@@ -688,6 +713,8 @@ async fn run_stream(
     let mut last_emit = std::time::Instant::now();
     // Reasoning: Claude Code reports a token estimate rather than text.
     let mut thinking_tokens: Option<i64> = None;
+    // Tool calls in this reply, kept so they can be persisted with it.
+    let mut tool_calls: Vec<serde_json::Value> = Vec::new();
 
     while let Some(item) = stream.next().await {
         if cancel.load(Ordering::SeqCst) {
@@ -709,7 +736,11 @@ async fn run_stream(
                 // The lockdown is a deny list, so a CLI upgrade could add a
                 // tool it has never heard of. Say so loudly rather than
                 // letting a chat window quietly gain file access.
-                let unexpected = crate::provider::claude_code::unexpected_tools(&tools);
+                let approved = {
+                    let conn = db.conn();
+                    repo::mcp::allowed_tool_names(&conn).unwrap_or_default()
+                };
+                let unexpected = crate::provider::claude_code::unexpected_tools(&tools, &approved);
                 if !unexpected.is_empty() {
                     tracing::warn!(
                         tools = ?unexpected,
@@ -769,6 +800,43 @@ async fn run_stream(
                     thinking_tokens = Some(n);
                     emit_thinking(app, conversation_id, message_id, thinking_tokens);
                 }
+            }
+            StreamEvent::ToolCall { id, name } => {
+                tool_calls.push(serde_json::json!({ "id": id, "name": name }));
+                let _ = app.emit(
+                    EV_TOOL,
+                    ToolUpdate {
+                        conversation_id: conversation_id.to_string(),
+                        message_id: message_id.to_string(),
+                        id,
+                        name,
+                        ok: None,
+                    },
+                );
+            }
+            StreamEvent::ToolResult { id, ok } => {
+                if let Some(entry) = tool_calls
+                    .iter_mut()
+                    .find(|c| c.get("id").and_then(|v| v.as_str()) == Some(id.as_str()))
+                {
+                    entry["ok"] = serde_json::Value::Bool(ok);
+                }
+                let name = tool_calls
+                    .iter()
+                    .find(|c| c.get("id").and_then(|v| v.as_str()) == Some(id.as_str()))
+                    .and_then(|c| c.get("name").and_then(|v| v.as_str()))
+                    .unwrap_or_default()
+                    .to_string();
+                let _ = app.emit(
+                    EV_TOOL,
+                    ToolUpdate {
+                        conversation_id: conversation_id.to_string(),
+                        message_id: message_id.to_string(),
+                        id,
+                        name,
+                        ok: Some(ok),
+                    },
+                );
             }
             StreamEvent::Completed {
                 stop_reason: sr,
@@ -847,6 +915,15 @@ async fn run_stream(
                 cache_write_tokens: cache_write,
             },
         )?;
+        if !tool_calls.is_empty() {
+            // Kept on the message so the record of what ran survives a
+            // reload, not just the live event.
+            let _ = repo::messages::merge_metadata(
+                &conn,
+                message_id,
+                &serde_json::json!({ "toolCalls": tool_calls }),
+            );
+        }
         repo::conversations::touch(&conn, conversation_id, now_ms())?;
         // Claude Code adopts the id we passed on the first turn; record it so
         // the next turn resumes the same session instead of starting over.

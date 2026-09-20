@@ -128,6 +128,36 @@ export interface ModelListResult {
   stale: boolean;
 }
 
+export interface McpServer {
+  id: string;
+  name: string;
+  transport: 'stdio' | 'sse' | 'http';
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  url: string | null;
+  enabled: boolean;
+  projectId: string | null;
+}
+
+export interface NewMcpServer {
+  name: string;
+  transport: 'stdio' | 'sse' | 'http';
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  url: string | null;
+  projectId: string | null;
+}
+
+export interface ToolPermission {
+  id: string;
+  serverId: string;
+  toolName: string;
+  category: string;
+  decision: 'allow' | 'deny' | 'ask';
+}
+
 export interface Prompt {
   id: string;
   title: string;
@@ -230,6 +260,22 @@ export interface StreamDeltaEvent {
   messageId: string;
   text: string;
   channel: 'text' | 'thinking';
+}
+
+export interface ToolUpdateEvent {
+  conversationId: string;
+  messageId: string;
+  id: string;
+  name: string;
+  /** null while running. */
+  ok: boolean | null;
+}
+
+/** A tool call recorded on a finished message. */
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  ok?: boolean;
 }
 
 export interface ThinkingUpdateEvent {

@@ -42,7 +42,27 @@ optional cost estimates, soft-delete with undo, and database backup.
 - **Prompt library and templates.**
 - **Remappable keyboard shortcuts.**
 
-## Phase 3 — MCP
+## Phase 3 — MCP  ✅ shipped
+
+- stdio / SSE / HTTP server configuration, with tool discovery ✅
+- per-tool permissions, enforced before a tool can run ✅
+- tool calls rendered in the transcript, with success or failure ✅
+- per-project server sets — still to do
+- a guided "add a folder" flow over the filesystem server — still to do
+
+**How permission works, and what it is not.** Approval happens *before* a
+tool can run, not while it runs. A server the user has not enabled is never
+written into the config the CLI reads, so its tools do not exist for that
+session; a tool with no explicit Allow is not passed in `--allowedTools`;
+and `--permission-prompts none` means anything that would have asked is
+denied rather than hanging on a prompt no GUI can answer.
+
+That is not the just-in-time "allow once" prompt originally sketched below.
+A prompt at call time needs the CLI to call back into a permission tool the
+app would have to host, and the pre-approval model is the safer half of
+that trade: nothing can run that the user has not already looked at.
+
+### Original sketch, kept for the record
 
 The database tables (`mcp_servers`, `mcp_permissions`) already ship in schema
 v1, and Settings → MCP states plainly that the feature is not yet active.

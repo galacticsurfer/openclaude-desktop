@@ -18,7 +18,7 @@ import { findInMessages, stepMatch } from '@/lib/find';
 
 export function ChatView() {
   const {
-    current, messages, streams, thinkingState, loadingMessages, currentId,
+    current, messages, streams, thinkingState, toolState, loadingMessages, currentId,
     retry, continueReply, editAndResend, newConversation, open, loadConversations, projects,
   } = useConversationStore();
   const { toggleSidebar, sidebarCollapsed, openOverlay, toast } = useUIStore();
@@ -255,6 +255,7 @@ export function ChatView() {
                   message={m}
                   stream={streams[m.id] ?? null}
                   thinkingState={thinkingState[m.id] ?? null}
+                  toolState={toolState[m.id]}
                   matched={activeMatch?.messageId === m.id}
                   isLast={i === lastIndex}
                   onRetry={() => void retry()}

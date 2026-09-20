@@ -81,6 +81,11 @@ pub enum StreamEvent {
     ThinkingStarted,
     /// The provider's running estimate of reasoning tokens spent so far.
     ThinkingProgress(i64),
+    /// Claude began using a tool. Only possible where the user has approved
+    /// one, so this is always worth showing rather than hiding.
+    ToolCall { id: String, name: String },
+    /// A tool returned. `ok` is false when it reported an error.
+    ToolResult { id: String, ok: bool },
     /// Terminal success.
     Completed {
         stop_reason: Option<String>,

@@ -20,6 +20,7 @@ pub mod commands;
 pub mod db;
 pub mod error;
 pub mod export;
+pub mod mcp;
 pub mod paths;
 pub mod provider;
 pub mod quick_chat;
@@ -196,6 +197,13 @@ pub fn run() {
             commands::projects::delete_project,
             // search
             commands::settings::set_quick_chat_shortcut,
+            commands::mcp::list_mcp_servers,
+            commands::mcp::add_mcp_server,
+            commands::mcp::set_mcp_server_enabled,
+            commands::mcp::delete_mcp_server,
+            commands::mcp::list_mcp_permissions,
+            commands::mcp::decide_mcp_tool,
+            commands::mcp::discover_mcp_tools,
             commands::prompts::list_prompts,
             commands::prompts::create_prompt,
             commands::prompts::update_prompt,

@@ -13,6 +13,8 @@ import type {
   StreamDeltaEvent,
   StreamEndEvent,
   ThinkingUpdateEvent,
+  ToolCallRecord,
+  ToolUpdateEvent,
 } from '@/types';
 
 /** Text accumulated for a reply that is still arriving. */
@@ -40,6 +42,8 @@ interface ConversationState {
    * anything written here in between.
    */
   thinkingState: Record<string, { tokens: number | null }>;
+  /** messageId -> tool calls in flight, while the reply is live. */
+  toolState: Record<string, ToolCallRecord[]>;
 
   loadingList: boolean;
   loadingMessages: boolean;
@@ -67,6 +71,7 @@ interface ConversationState {
 
   applyDelta: (e: StreamDeltaEvent) => void;
   applyThinking: (e: ThinkingUpdateEvent) => void;
+  applyTool: (e: ToolUpdateEvent) => void;
   applyEnd: (e: StreamEndEvent) => void;
   markStarted: (conversationId: string, messageId: string) => void;
   patchTitle: (conversationId: string, title: string) => void;
@@ -108,6 +113,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   streams: {},
   generating: [],
   thinkingState: {},
+  toolState: {},
   loadingList: true,
   loadingMessages: false,
   pendingAttachments: [],
@@ -315,6 +321,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       // A retry reuses the message id; clear any reasoning left from the
       // attempt before it.
       thinkingState: omit(s.thinkingState, messageId),
+      toolState: omit(s.toolState, messageId),
     }));
   },
 
@@ -339,6 +346,16 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     }));
   },
 
+  applyTool(e) {
+    set((s) => {
+      const list = s.toolState[e.messageId] ?? [];
+      const at = list.findIndex((t) => t.id === e.id);
+      const entry = { id: e.id, name: e.name, ...(e.ok === null ? {} : { ok: e.ok }) };
+      const next = at === -1 ? [...list, entry] : list.map((t, i) => (i === at ? entry : t));
+      return { toolState: { ...s.toolState, [e.messageId]: next } };
+    });
+  },
+
   applyEnd(e) {
     pending.delete(e.messageId);
     set((s) => {
@@ -347,6 +364,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       return {
         streams,
         thinkingState: omit(s.thinkingState, e.messageId),
+        toolState: omit(s.toolState, e.messageId),
         generating: s.generating.filter((id) => id !== e.conversationId),
       };
     });

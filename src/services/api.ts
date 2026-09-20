@@ -7,7 +7,10 @@
 
 import { invoke } from './ipc';
 import type {
+  McpServer,
+  NewMcpServer,
   Prompt,
+  ToolPermission,
   AddAttachmentsResult,
   AppInfo,
   ClaudeCodeStatus,
@@ -164,6 +167,24 @@ export const deleteProject = (id: string) => invoke<void>('delete_project', { id
 /** Claim a desktop-wide quick-chat shortcut; empty clears it. */
 export const setQuickChatShortcut = (accelerator: string) =>
   invoke<void>('set_quick_chat_shortcut', { accelerator });
+
+// --- MCP ------------------------------------------------------------------
+
+export const listMcpServers = () => invoke<McpServer[]>('list_mcp_servers');
+export const addMcpServer = (server: NewMcpServer) =>
+  invoke<McpServer>('add_mcp_server', { server });
+export const setMcpServerEnabled = (id: string, enabled: boolean) =>
+  invoke<void>('set_mcp_server_enabled', { id, enabled });
+export const deleteMcpServer = (id: string) => invoke<void>('delete_mcp_server', { id });
+export const listMcpPermissions = () => invoke<ToolPermission[]>('list_mcp_permissions');
+export const decideMcpTool = (
+  serverId: string,
+  toolName: string,
+  category: string,
+  decision: 'allow' | 'deny' | 'ask',
+) => invoke<void>('decide_mcp_tool', { serverId, toolName, category, decision });
+/** Ask a server what it offers. Grants nothing. */
+export const discoverMcpTools = (id: string) => invoke<string[]>('discover_mcp_tools', { id });
 
 // --- prompt library -------------------------------------------------------
 

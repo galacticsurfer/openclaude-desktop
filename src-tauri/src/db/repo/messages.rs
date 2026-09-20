@@ -167,6 +167,27 @@ pub struct Completion<'a> {
     pub cache_write_tokens: Option<i64>,
 }
 
+/// Merge keys into a message's stored metadata.
+pub fn merge_metadata(conn: &Connection, id: &str, patch: &serde_json::Value) -> Result<()> {
+    let current: String = conn
+        .query_row("SELECT metadata FROM messages WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .unwrap_or_else(|_| "{}".into());
+    let mut obj: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&current).unwrap_or_default();
+    if let Some(p) = patch.as_object() {
+        for (k, v) in p {
+            obj.insert(k.clone(), v.clone());
+        }
+    }
+    conn.execute(
+        "UPDATE messages SET metadata = ?2 WHERE id = ?1",
+        params![id, serde_json::to_string(&obj)?],
+    )?;
+    Ok(())
+}
+
 pub fn finalize(conn: &Connection, id: &str, c: Completion<'_>) -> Result<()> {
     conn.execute(
         "UPDATE messages
