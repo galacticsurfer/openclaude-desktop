@@ -271,7 +271,20 @@ fn provider_for(db: &Db, conversation: &Conversation) -> Result<ClaudeCodeProvid
     // claims it; later turns resume it.
     let session = match conversation.provider_conversation_id.as_deref() {
         Some(id) if !id.is_empty() => SessionRef::Resume(id.to_string()),
-        _ => SessionRef::New(conversation.id.clone()),
+        // A branch has no session yet but inherits one to continue from, so
+        // the copied history is actually in context rather than only on
+        // screen. Forking keeps the original conversation untouched.
+        _ => match conversation
+            .metadata
+            .get("forkFrom")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        {
+            Some(from) => SessionRef::Fork {
+                from: from.to_string(),
+            },
+            None => SessionRef::New(conversation.id.clone()),
+        },
     };
     let effort: Option<String> = {
         let conn = db.conn();
@@ -508,6 +521,7 @@ async fn run_stream(
     let mut thinking = String::new();
     let mut provider_message_id: Option<String> = None;
     let mut resolved_model: Option<String> = None;
+    let mut reported_session: Option<String> = None;
     let mut stop_reason: Option<String> = None;
     let (mut input_tokens, mut output_tokens) = (None, None);
     let (mut cache_read, mut cache_write) = (None, None);
@@ -525,10 +539,15 @@ async fn run_stream(
 
         match event {
             StreamEvent::SessionReady {
+                session_id,
                 model,
                 slash_commands,
-                ..
             } => {
+                // Record the id the CLI actually adopted: a forked session
+                // gets a fresh one rather than the id we asked for.
+                if !session_id.is_empty() {
+                    reported_session = Some(session_id);
+                }
                 // The alias the user picked ("sonnet") resolved to a concrete
                 // model; record it so the UI can show what actually ran.
                 resolved_model = Some(model);
@@ -633,11 +652,15 @@ async fn run_stream(
         // Claude Code adopts the id we passed on the first turn; record it so
         // the next turn resumes the same session instead of starting over.
         if first_turn && !cancelled {
-            let _ = conn.execute(
-                "UPDATE conversations SET provider_conversation_id = ?2 WHERE id = ?1
-                   AND provider_conversation_id IS NULL",
-                rusqlite::params![conversation_id, conversation_id],
-            );
+            // The id the CLI reports, not the one we asked for: a forked
+            // session gets a fresh id of its own.
+            if let Some(session) = reported_session.as_deref() {
+                let _ = conn.execute(
+                    "UPDATE conversations SET provider_conversation_id = ?2 WHERE id = ?1
+                       AND provider_conversation_id IS NULL",
+                    rusqlite::params![conversation_id, session],
+                );
+            }
         }
     }
 
@@ -912,8 +935,9 @@ pub fn branch_from(db: &Db, message_id: &str) -> Result<Conversation> {
         tx.execute(
             "INSERT INTO conversations
                 (id, title, title_locked, provider, model, system_prompt, project_id,
-                 branched_from_message_id, created_at, updated_at, last_message_at)
-             VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?8)",
+                 branched_from_message_id, created_at, updated_at, last_message_at,
+                 metadata)
+             VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?8, ?9)",
             rusqlite::params![
                 new_id,
                 format!("{} (branch)", source.title),
@@ -922,7 +946,10 @@ pub fn branch_from(db: &Db, message_id: &str) -> Result<Conversation> {
                 source.system_prompt,
                 source.project_id,
                 message_id,
-                now
+                now,
+                // Remember which backend session to continue from, so the
+                // copied history is in context and not merely on screen.
+                serde_json::json!({ "forkFrom": source.provider_conversation_id }).to_string()
             ],
         )?;
 

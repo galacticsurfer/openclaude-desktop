@@ -171,6 +171,11 @@ pub enum SessionRef {
     New(String),
     /// A later turn in an established session.
     Resume(String),
+    /// First turn of a branched conversation: continue from another session's
+    /// history but in a session of its own, so the original is untouched.
+    /// The CLI mints the new id, which is why the reported one is persisted
+    /// rather than assumed.
+    Fork { from: String },
 }
 
 impl ClaudeCodeProvider {
@@ -201,7 +206,11 @@ impl ClaudeCodeProvider {
             // No TTY here, so a permission prompt would hang forever. With
             // every tool disabled there is nothing left to ask about.
             .arg("--permission-mode")
-            .arg("dontAsk");
+            .arg("dontAsk")
+            // Structured input, so an attached image or PDF can travel as a
+            // content block. Plain text stdin would flatten them away.
+            .arg("--input-format")
+            .arg("stream-json");
 
         if !req.model.trim().is_empty() {
             cmd.arg("--model").arg(&req.model);
@@ -222,6 +231,9 @@ impl ClaudeCodeProvider {
             SessionRef::Resume(id) => {
                 cmd.arg("--resume").arg(id);
             }
+            SessionRef::Fork { from } => {
+                cmd.arg("--resume").arg(from).arg("--fork-session");
+            }
         }
 
         cmd.current_dir(&self.cwd)
@@ -233,25 +245,34 @@ impl ClaudeCodeProvider {
     }
 }
 
-/// Flatten the request into the single prompt the CLI reads from stdin.
+/// Build the JSON user message the CLI reads from stdin.
 ///
 /// Only the trailing user turn is sent: the CLI owns conversation history
 /// through its session, so replaying earlier turns would duplicate them.
-pub fn prompt_for(req: &ChatRequest) -> String {
+///
+/// Content blocks go across structurally rather than flattened to text,
+/// which is what lets an attached image or PDF actually reach the model —
+/// they serialise to the same shapes the Messages API uses.
+pub fn input_message(req: &ChatRequest) -> Result<String> {
     let Some(last) = req.messages.last() else {
-        return String::new();
+        return Err(AppError::invalid("There is nothing to send."));
     };
-    last.content
-        .iter()
-        .map(|b| match b {
-            ContentBlock::Text { text } => text.clone(),
-            // Images and PDFs cannot cross the CLI's text stdin. They are
-            // rejected before we get here; this is belt and braces.
-            ContentBlock::Image { .. } => "[image omitted]".to_string(),
-            ContentBlock::Document { .. } => "[document omitted]".to_string(),
+
+    let envelope = serde_json::json!({
+        "type": "user",
+        "message": { "role": "user", "content": last.content },
+    });
+    Ok(serde_json::to_string(&envelope)? + "\n")
+}
+
+/// Whether the turn carries anything at all.
+fn has_content(req: &ChatRequest) -> bool {
+    req.messages.last().is_some_and(|m| {
+        m.content.iter().any(|b| match b {
+            ContentBlock::Text { text } => !text.trim().is_empty(),
+            ContentBlock::Image { .. } | ContentBlock::Document { .. } => true,
         })
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    })
 }
 
 /// One decoded line of the CLI's NDJSON output.
@@ -393,10 +414,10 @@ impl AIProvider for ClaudeCodeProvider {
     }
 
     async fn stream_message(&self, req: ChatRequest) -> Result<EventStream> {
-        let prompt = prompt_for(&req);
-        if prompt.trim().is_empty() {
+        if !has_content(&req) {
             return Err(AppError::invalid("There is nothing to send."));
         }
+        let payload = input_message(&req)?;
 
         std::fs::create_dir_all(&self.cwd).ok();
 
@@ -410,7 +431,7 @@ impl AIProvider for ClaudeCodeProvider {
         // Hand over the prompt and close stdin, or the CLI waits for more.
         if let Some(mut stdin) = child.stdin.take() {
             use tokio::io::AsyncWriteExt;
-            let bytes = prompt.into_bytes();
+            let bytes = payload.into_bytes();
             tokio::spawn(async move {
                 let _ = stdin.write_all(&bytes).await;
                 let _ = stdin.shutdown().await;
@@ -725,9 +746,79 @@ mod tests {
                 }],
             },
         );
-        let p = prompt_for(&r);
-        assert_eq!(p, "second");
-        assert!(!p.contains("first"), "replaying history would duplicate it");
+        let payload = input_message(&r).unwrap();
+        assert!(payload.contains("second"));
+        assert!(
+            !payload.contains("first"),
+            "replaying history would duplicate it"
+        );
+    }
+
+    #[test]
+    fn an_attached_image_survives_as_a_content_block() {
+        // Flattening the turn to text would silently drop the image; it has
+        // to cross as structured content for the model to see it.
+        let mut r = req("what is this?");
+        r.messages[0].content.insert(
+            0,
+            ContentBlock::Image {
+                source: crate::provider::MediaSource::Base64 {
+                    media_type: "image/png".into(),
+                    data: "aGVsbG8=".into(),
+                },
+            },
+        );
+
+        let payload = input_message(&r).unwrap();
+        let v: serde_json::Value = serde_json::from_str(payload.trim()).unwrap();
+        assert_eq!(v["type"], "user");
+        assert_eq!(v["message"]["role"], "user");
+
+        let blocks = v["message"]["content"].as_array().unwrap();
+        assert_eq!(blocks[0]["type"], "image");
+        assert_eq!(blocks[0]["source"]["type"], "base64");
+        assert_eq!(blocks[0]["source"]["media_type"], "image/png");
+        assert_eq!(blocks[0]["source"]["data"], "aGVsbG8=");
+        assert_eq!(blocks[1]["type"], "text");
+    }
+
+    #[test]
+    fn a_pdf_crosses_as_a_document_block() {
+        let mut r = req("summarise this");
+        r.messages[0].content.insert(
+            0,
+            ContentBlock::Document {
+                source: crate::provider::MediaSource::Base64 {
+                    media_type: "application/pdf".into(),
+                    data: "JVBERi0=".into(),
+                },
+            },
+        );
+        let v: serde_json::Value = serde_json::from_str(input_message(&r).unwrap().trim()).unwrap();
+        assert_eq!(v["message"]["content"][0]["type"], "document");
+    }
+
+    #[test]
+    fn an_empty_turn_is_refused() {
+        let mut r = req("   ");
+        assert!(!has_content(&r));
+        r.messages[0].content.clear();
+        assert!(!has_content(&r));
+    }
+
+    #[test]
+    fn structured_input_is_requested_from_the_cli() {
+        let p = ClaudeCodeProvider::new(PathBuf::from("/tmp"), SessionRef::New("s".into()));
+        let args: Vec<String> = p
+            .command(&req("hi"))
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        // Without this the CLI reads stdin as plain text and attachments die.
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--input-format" && w[1] == "stream-json"));
     }
 
     #[test]
@@ -960,6 +1051,28 @@ mod tests {
         assert!(joined.contains("dontAsk"));
         // --bare would force API-key auth and never read the user's login.
         assert!(!joined.contains("--bare"));
+    }
+
+    #[test]
+    fn a_branch_forks_the_source_session_rather_than_resuming_it() {
+        // Resuming the source directly would write the branch's turns into
+        // the original conversation's history.
+        let p = ClaudeCodeProvider::new(
+            PathBuf::from("/tmp"),
+            SessionRef::Fork {
+                from: "source-1".into(),
+            },
+        );
+        let args: Vec<String> = p
+            .command(&req("hi"))
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--resume" && w[1] == "source-1"));
+        assert!(args.iter().any(|a| a == "--fork-session"));
     }
 
     #[test]

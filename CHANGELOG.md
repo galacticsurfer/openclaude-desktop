@@ -50,8 +50,27 @@ separate bill, and nothing to paste or store.
 
 ### Fixed
 
+- **Image and PDF attachments worked again.** Moving to the CLI had quietly
+  broken them: validation still accepted a PNG and showed its chip, but the
+  turn was flattened to text and the image became `[image omitted]`. The turn
+  is now sent as a structured message (`--input-format stream-json`), so
+  attachments travel as real content blocks. Verified end to end: the model
+  read the text out of an attached image.
+- **Branching carried no context.** A branched conversation copied the
+  messages on screen but started a fresh CLI session, so Claude remembered
+  none of it. It now forks the source session (`--resume … --fork-session`),
+  leaving the original untouched, and records the session id the CLI reports
+  rather than the one we asked for — a fork gets a new one.
 - Sending with no conversation open silently discarded the typed message: the
   composer clears optimistically, and the store returned without an error.
+
+### Performance
+
+- Window resize, minimise and maximise are smoother: the chat header no
+  longer uses a blurred translucent backdrop (re-blurred every frame, and
+  invisible over a solid canvas), the auto-scroll `ResizeObserver` coalesces
+  into one frame and stops re-rendering when nothing changed, and each
+  message is CSS-contained so a reflow does not walk the whole transcript.
 
 Requires Claude Code to be installed and signed in.
 

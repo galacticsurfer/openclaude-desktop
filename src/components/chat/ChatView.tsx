@@ -12,7 +12,6 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Spinner } from '@/components/ui/Spinner';
 import * as api from '@/services/api';
 import { AppError } from '@/services/ipc';
-import { cn } from '@/lib/cn';
 
 export function ChatView() {
   const {
@@ -233,10 +232,10 @@ function Header({
 }) {
   return (
     <header
-      className={cn(
-        'flex h-12 shrink-0 items-center gap-2 border-b border-line bg-canvas/80 px-3',
-        'backdrop-blur supports-[backdrop-filter]:bg-canvas/70',
-      )}
+      // Opaque on purpose: a translucent blurred header has to be re-blurred
+      // every frame while the window resizes, and over a solid canvas it
+      // looks identical to this.
+      className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-canvas px-3"
     >
       <IconButton
         label={collapsed ? 'Show sidebar (Ctrl B)' : 'Hide sidebar (Ctrl B)'}

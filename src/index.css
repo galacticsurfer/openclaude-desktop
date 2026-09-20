@@ -172,6 +172,12 @@
    Rendered Markdown.
    --------------------------------------------------------------------------- */
 
+.message-block {
+  /* Bound layout and paint work to the message: without this, resizing a
+     window with a long transcript reflows every message in it. */
+  contain: layout paint style;
+}
+
 .prose-oc {
   color: rgb(var(--c-ink));
   font-size: var(--fs-body);

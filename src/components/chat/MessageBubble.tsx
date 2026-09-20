@@ -54,7 +54,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <article
-      className={cn('group/msg relative', isUser ? 'pl-8' : '')}
+      className={cn('group/msg message-block relative', isUser ? 'pl-8' : '')}
       aria-label={`${isUser ? 'You' : 'Claude'} at ${formatTime(m.createdAt)}`}
     >
       <header className="mb-1.5 flex items-center gap-2">

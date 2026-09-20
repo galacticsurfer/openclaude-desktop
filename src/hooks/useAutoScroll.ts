@@ -54,9 +54,19 @@ export function useAutoScroll<T extends HTMLElement>(deps: unknown[]) {
       gestureUntil = performance.now() + INTENT_MS;
     };
 
+    // Only re-render when the answer actually changes. A window resize fires
+    // the observer continuously, and an unconditional setState there would
+    // re-render the whole conversation on every frame.
+    let lastNear: boolean | null = null;
+    const publish = (near: boolean) => {
+      if (near === lastNear) return;
+      lastNear = near;
+      setAtBottom(near);
+    };
+
     const onScroll = () => {
       const near = nearBottom();
-      setAtBottom(near);
+      publish(near);
       if (near) {
         // Returning to the bottom always resumes following.
         stuck.current = true;
@@ -72,17 +82,25 @@ export function useAutoScroll<T extends HTMLElement>(deps: unknown[]) {
     node.addEventListener('pointerdown', markGesture, { passive: true });
     node.addEventListener('keydown', markGesture);
 
+    // The observer can fire many times per frame while dragging a window
+    // edge; collapse that to one piece of work per frame.
+    let queued = 0;
     const observer = new ResizeObserver(() => {
-      if (stuck.current) node.scrollTop = node.scrollHeight;
-      else setAtBottom(nearBottom());
+      if (queued) return;
+      queued = requestAnimationFrame(() => {
+        queued = 0;
+        if (stuck.current) node.scrollTop = node.scrollHeight;
+        else publish(nearBottom());
+      });
     });
     observer.observe(node);
     // The inner wrapper is what actually grows as messages arrive.
     for (const child of Array.from(node.children)) observer.observe(child);
 
-    setAtBottom(nearBottom());
+    publish(nearBottom());
 
     return () => {
+      if (queued) cancelAnimationFrame(queued);
       node.removeEventListener('scroll', onScroll);
       node.removeEventListener('wheel', markGesture);
       node.removeEventListener('touchmove', markGesture);
