@@ -3,6 +3,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { Sidebar } from './Sidebar';
 import { ChatView } from '@/components/chat/ChatView';
 import { TabStrip } from './TabStrip';
+import { ArtifactPanel } from '@/components/artifacts/ArtifactPanel';
 import { SearchPalette } from '@/components/search/SearchPalette';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
@@ -177,6 +178,8 @@ export function AppShell() {
           <ChatView />
         </div>
       </main>
+
+      <ArtifactPanel />
 
       {overlay.kind === 'search' && <SearchPalette />}
       {overlay.kind === 'commandPalette' && <CommandPalette />}

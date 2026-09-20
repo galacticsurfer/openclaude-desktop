@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Code2, Eye } from 'lucide-react';
+import { AlertTriangle, Code2, Eye, PanelRight } from 'lucide-react';
 import { CodeBlock } from './CodeBlock';
+import { useUIStore } from '@/stores/useUIStore';
 
 /**
  * A rendered Mermaid diagram, with the source one click away.
@@ -33,12 +34,20 @@ function isDark() {
   return document.documentElement.classList.contains('dark');
 }
 
-export const Mermaid = memo(function Mermaid({ code }: { code: string }) {
+export const Mermaid = memo(function Mermaid({
+  code,
+  inPanel,
+}: {
+  code: string;
+  /** Rendered inside the artifact panel, which must not offer to reopen it. */
+  inPanel?: boolean;
+}) {
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [dark, setDark] = useState(isDark);
   const idRef = useRef(`mmd-${Math.random().toString(36).slice(2)}`);
+  const openArtifact = useUIStore((s) => s.openArtifact);
 
   // Mermaid bakes the palette into the SVG, so a theme change needs a
   // re-render rather than a restyle.
@@ -86,10 +95,20 @@ export const Mermaid = memo(function Mermaid({ code }: { code: string }) {
         <span className="font-mono text-[11px] uppercase tracking-wide text-ink-faint">
           Diagram
         </span>
+        {!inPanel && (
+          <button
+            type="button"
+            onClick={() => openArtifact({ title: 'diagram.mmd', code, language: 'mermaid' })}
+            className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11.5px] text-ink-faint hover:bg-line hover:text-ink"
+          >
+            <PanelRight size={12} />
+            Panel
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowSource((v) => !v)}
-          className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11.5px] text-ink-faint hover:bg-line hover:text-ink"
+          className={`${inPanel ? 'ml-auto ' : ''}flex items-center gap-1 rounded px-1.5 py-0.5 text-[11.5px] text-ink-faint hover:bg-line hover:text-ink`}
         >
           {showSource ? <Eye size={12} /> : <Code2 size={12} />}
           {showSource ? 'Diagram' : 'Source'}

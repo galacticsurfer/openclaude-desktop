@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Download, WrapText } from 'lucide-react';
+import { Check, Copy, Download, PanelRight, WrapText } from 'lucide-react';
 import { highlight, languageLabel, MAX_HIGHLIGHT_CHARS } from '@/lib/highlighter';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -12,7 +12,12 @@ interface Props {
   language?: string;
   /** True while the enclosing message is still streaming. */
   live?: boolean;
+  /** Rendered inside the artifact panel, which must not offer to reopen it. */
+  inPanel?: boolean;
 }
+
+/** Enough lines that reading it in the transcript is a chore. */
+const PANEL_WORTHY_LINES = 12;
 
 /**
  * A fenced code block: language label, copy, wrap toggle and save.
@@ -23,12 +28,13 @@ interface Props {
  * re-tokenising a growing, syntactically incomplete block every frame is both
  * expensive and visually noisy.
  */
-export const CodeBlock = memo(function CodeBlock({ code, language, live }: Props) {
+export const CodeBlock = memo(function CodeBlock({ code, language, live, inPanel }: Props) {
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const globalWrap = useSettingsStore((s) => s.settings?.['appearance.codeWrap'] ?? false);
   const [wrap, setWrap] = useState(globalWrap);
   const toast = useUIStore((s) => s.toast);
+  const openArtifact = useUIStore((s) => s.openArtifact);
   const copyTimer = useRef<number | null>(null);
 
   useEffect(() => setWrap(globalWrap), [globalWrap]);
@@ -99,6 +105,21 @@ export const CodeBlock = memo(function CodeBlock({ code, language, live }: Props
           >
             <WrapText size={14} />
           </IconButton>
+          {!inPanel && !live && lineCount >= PANEL_WORTHY_LINES && (
+            <IconButton
+              label="Open in side panel"
+              size="sm"
+              onClick={() =>
+                openArtifact({
+                  title: `snippet.${language && /^[a-z0-9]+$/i.test(language) ? language : 'txt'}`,
+                  code,
+                  language,
+                })
+              }
+            >
+              <PanelRight size={14} />
+            </IconButton>
+          )}
           <IconButton label="Save snippet to a file" onClick={save} size="sm">
             <Download size={14} />
           </IconButton>

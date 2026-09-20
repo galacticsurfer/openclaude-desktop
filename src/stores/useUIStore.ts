@@ -51,6 +51,15 @@ interface UIState {
    * deliberately session-only: reopening yesterday's tab strip is more
    * surprising than useful.
    */
+  /**
+   * A code block or diagram pulled out of the transcript into the side
+   * panel. Not an executable artifact: this app renders what Claude wrote,
+   * it does not run it.
+   */
+  artifact: { title: string; code: string; language?: string } | null;
+  openArtifact: (a: { title: string; code: string; language?: string }) => void;
+  closeArtifact: () => void;
+
   tabs: string[];
   /** Show `id` in the active tab, or focus the tab already showing it. */
   openInTab: (id: string, activeId: string | null) => void;
@@ -91,6 +100,10 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openOverlay: (overlay) => set({ overlay }),
   closeOverlay: () => set({ overlay: { kind: 'none' } }),
+
+  artifact: null,
+  openArtifact: (artifact) => set({ artifact }),
+  closeArtifact: () => set({ artifact: null }),
 
   tabs: [],
 
