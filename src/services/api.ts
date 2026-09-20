@@ -112,8 +112,9 @@ export const writeTextFile = (path: string, contents: string) =>
 
 export const deleteMessage = (id: string) => invoke<void>('delete_message', { id });
 
-export const editMessage = (id: string, content: string) =>
-  invoke<void>('edit_message', { id, content });
+/** Rewrite a user turn, drop everything after it, and answer again. */
+export const editAndResend = (conversationId: string, messageId: string, text: string) =>
+  invoke<string>('edit_and_resend', { conversationId, messageId, text });
 
 // --- chat -----------------------------------------------------------------
 

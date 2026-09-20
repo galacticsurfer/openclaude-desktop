@@ -21,6 +21,17 @@ pub async fn retry_message(app: AppHandle, conversation_id: String) -> Result<St
 }
 
 #[tauri::command]
+pub async fn edit_and_resend(
+    app: AppHandle,
+    conversation_id: String,
+    message_id: String,
+    text: String,
+) -> Result<String> {
+    let state = app.state::<Arc<AppState>>().inner().clone();
+    crate::chat::edit_and_resend(app.clone(), state, conversation_id, message_id, text).await
+}
+
+#[tauri::command]
 pub async fn continue_message(app: AppHandle, conversation_id: String) -> Result<String> {
     let state = app.state::<Arc<AppState>>().inner().clone();
     crate::chat::continue_interrupted(app.clone(), state, conversation_id).await

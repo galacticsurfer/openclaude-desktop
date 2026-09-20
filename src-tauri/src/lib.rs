@@ -157,10 +157,10 @@ pub fn run() {
             commands::conversations::export_conversation,
             commands::conversations::write_text_file,
             commands::conversations::delete_message,
-            commands::conversations::edit_message,
             // chat
             commands::chat::send_message,
             commands::chat::retry_message,
+            commands::chat::edit_and_resend,
             commands::chat::continue_message,
             commands::chat::stop_generation,
             commands::chat::is_generating,

@@ -3,7 +3,11 @@
 mod common;
 
 use common::*;
-use openclaude_lib::chat::{build_messages, clean_generated_title, compose_system, fallback_title};
+use serde_json::json;
+use openclaude_lib::chat::{
+    build_messages, clean_generated_title, compose_system, fallback_title, rebuilding_context,
+    render_prior_turns,
+};
 use openclaude_lib::db::models::*;
 use openclaude_lib::db::repo;
 
@@ -262,4 +266,75 @@ fn branching_copies_history_up_to_the_chosen_message() {
         repo::messages::count_in_conversation(&conn, &c.id).unwrap(),
         3
     );
+}
+
+// --- rebuilding a session after an edit -----------------------------------
+
+fn conv(provider_session: Option<&str>, metadata: serde_json::Value) -> Conversation {
+    Conversation {
+        id: "c1".into(),
+        title: "t".into(),
+        title_locked: false,
+        provider: "claude-code".into(),
+        provider_conversation_id: provider_session.map(str::to_owned),
+        model: "sonnet".into(),
+        system_prompt: None,
+        project_id: None,
+        pinned: false,
+        archived: false,
+        deleted_at: None,
+        branched_from_message_id: None,
+        created_at: 0,
+        updated_at: 0,
+        last_message_at: None,
+        metadata,
+    }
+}
+
+#[test]
+fn a_live_session_is_resumed_not_rebuilt() {
+    // History lives in the CLI session; replaying it would duplicate it.
+    assert!(!rebuilding_context(&conv(Some("sess-1"), json!({})), 6));
+}
+
+#[test]
+fn a_first_turn_has_no_history_to_rebuild() {
+    assert!(!rebuilding_context(&conv(None, json!({})), 1));
+}
+
+#[test]
+fn a_branch_carries_its_context_by_forking() {
+    // Its copied history is already in the forked session.
+    assert!(!rebuilding_context(
+        &conv(None, json!({"forkFrom": "sess-1"})),
+        6
+    ));
+}
+
+#[test]
+fn a_truncated_conversation_with_no_session_is_rebuilt() {
+    assert!(rebuilding_context(&conv(None, json!({})), 6));
+    // An empty forkFrom is not a fork.
+    assert!(rebuilding_context(&conv(None, json!({"forkFrom": ""})), 6));
+}
+
+#[test]
+fn prior_turns_render_with_both_speakers_and_an_edit_notice() {
+    let prior = vec![
+        msg(Role::User, "what is a river", MessageStatus::Complete),
+        msg(Role::Assistant, "flowing water", MessageStatus::Complete),
+    ];
+    let out = render_prior_turns(&prior);
+    assert!(out.contains("### User"));
+    assert!(out.contains("what is a river"));
+    assert!(out.contains("### Claude"));
+    assert!(out.contains("flowing water"));
+    // The model must not answer the transcript itself.
+    assert!(out.contains("answer only the message that follows"));
+}
+
+#[test]
+fn an_empty_turn_is_left_out_of_the_replay() {
+    let prior = vec![msg(Role::Assistant, "   ", MessageStatus::Complete)];
+    assert!(!render_prior_turns(&prior).contains("### Claude"));
 }

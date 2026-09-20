@@ -19,7 +19,7 @@ import { findInMessages, stepMatch } from '@/lib/find';
 export function ChatView() {
   const {
     current, messages, streams, thinkingState, loadingMessages, currentId,
-    retry, continueReply, newConversation, open, loadConversations, projects,
+    retry, continueReply, editAndResend, newConversation, open, loadConversations, projects,
   } = useConversationStore();
   const { toggleSidebar, sidebarCollapsed, openOverlay, toast } = useUIStore();
   const claudeCode = useSettingsStore((s) => s.claudeCode);
@@ -260,6 +260,7 @@ export function ChatView() {
                   onRetry={() => void retry()}
                   onContinue={() => void continueReply()}
                   onBranch={() => void branch(m.id)}
+                  onEdit={(t) => void editAndResend(m.id, t)}
                   onCopy={(t) => void copyText(t)}
                 />
               ))}

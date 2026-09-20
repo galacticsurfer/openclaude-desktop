@@ -224,10 +224,3 @@ pub fn delete_message(state: State<'_, Arc<AppState>>, id: String) -> Result<()>
     msg_repo::delete(&state.db.conn(), &id)
 }
 
-#[tauri::command]
-pub fn edit_message(state: State<'_, Arc<AppState>>, id: String, content: String) -> Result<()> {
-    if content.trim().is_empty() {
-        return Err(AppError::invalid("A message cannot be empty."));
-    }
-    msg_repo::set_content(&state.db.conn(), &id, content.trim())
-}

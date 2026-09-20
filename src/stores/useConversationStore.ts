@@ -54,6 +54,7 @@ interface ConversationState {
   send: (text: string) => Promise<void>;
   stop: () => Promise<void>;
   retry: () => Promise<void>;
+  editAndResend: (messageId: string, text: string) => Promise<void>;
   continueReply: () => Promise<void>;
   reloadMessages: () => Promise<void>;
 
@@ -221,6 +222,17 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     if (!id) return;
     try {
       await api.retryMessage(id);
+      await get().reloadMessages();
+    } catch (err) {
+      useUIStore.getState().toast('error', AppError.from(err).message);
+    }
+  },
+
+  async editAndResend(messageId, text) {
+    const id = get().currentId;
+    if (!id) return;
+    try {
+      await api.editAndResend(id, messageId, text);
       await get().reloadMessages();
     } catch (err) {
       useUIStore.getState().toast('error', AppError.from(err).message);

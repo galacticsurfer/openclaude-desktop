@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import {
   AlertTriangle, Brain, Check, ChevronDown, ChevronRight, Copy, GitBranch,
-  PauseCircle, RefreshCw, Play,
+  PauseCircle, Pencil, RefreshCw, Play,
 } from 'lucide-react';
 import type { Message } from '@/types';
 import { Markdown } from '@/components/markdown/Markdown';
@@ -25,6 +25,7 @@ interface Props {
   onRetry: () => void;
   onContinue: () => void;
   onBranch: () => void;
+  onEdit: (text: string) => void;
   onCopy: (text: string) => void;
 }
 
@@ -43,9 +44,12 @@ export const MessageBubble = memo(function MessageBubble({
   onRetry,
   onContinue,
   onBranch,
+  onEdit,
   onCopy,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
   const [showThinking, setShowThinking] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -95,6 +99,18 @@ export const MessageBubble = memo(function MessageBubble({
           {text.length > 0 && (
             <IconButton label={copied ? 'Copied' : 'Copy message'} size="sm" onClick={copy}>
               {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+            </IconButton>
+          )}
+          {isUser && !streaming && !editing && (
+            <IconButton
+              label="Edit and send again"
+              size="sm"
+              onClick={() => {
+                setDraft(m.content);
+                setEditing(true);
+              }}
+            >
+              <Pencil size={13} />
             </IconButton>
           )}
           {!streaming && (
@@ -155,6 +171,48 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       )}
 
+      {editing ? (
+        <div className="rounded-lg border border-accent bg-surface p-2 shadow-subtle">
+          <textarea
+            value={draft}
+            autoFocus
+            rows={Math.min(12, draft.split('\n').length + 1)}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditing(false);
+              } else if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (draft.trim() !== '') {
+                  setEditing(false);
+                  onEdit(draft);
+                }
+              }
+            }}
+            aria-label="Edit your message"
+            className="w-full resize-none bg-transparent px-1.5 py-1 text-[14.5px] leading-relaxed text-ink outline-none scroll-thin"
+          />
+          <div className="mt-1 flex items-center justify-end gap-2 px-1.5">
+            <span className="mr-auto text-[11.5px] text-ink-faint">
+              Replies after this point will be discarded.
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={draft.trim() === ''}
+              onClick={() => {
+                setEditing(false);
+                onEdit(draft);
+              }}
+            >
+              Send
+            </Button>
+          </div>
+        </div>
+      ) : (
       <div
         className={cn(
           isUser &&
@@ -181,6 +239,8 @@ export const MessageBubble = memo(function MessageBubble({
         ) : null}
 
       </div>
+
+      )}
 
       {m.status === 'interrupted' && !streaming && (
         <Notice

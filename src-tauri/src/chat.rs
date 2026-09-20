@@ -102,6 +102,54 @@ pub fn compose_system(
     }
 }
 
+/// Is this request rebuilding a conversation the CLI has no session for?
+///
+/// True after an edit, which truncates the transcript: the old session still
+/// holds the turns we just removed, so it must be abandoned rather than
+/// resumed. A branch also has no session, but inherits one by forking and so
+/// already carries its context — replaying it there would duplicate it.
+pub fn rebuilding_context(conversation: &Conversation, turns: usize) -> bool {
+    conversation.provider_conversation_id.is_none()
+        && conversation
+            .metadata
+            .get("forkFrom")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .is_none()
+        && turns > 1
+}
+
+/// Render earlier turns as text, to be carried in the system prompt.
+///
+/// The obvious approach — replaying them as real turns — is not affordable:
+/// the CLI answers every `user` record it is given, so an N-turn replay
+/// costs N generations. Injected as system context it costs none, at the
+/// price of the model seeing the history as a transcript rather than as its
+/// own turns.
+pub fn render_prior_turns(prior: &[Message]) -> String {
+    let mut out = String::from(
+        "## Earlier in this conversation\n\n\
+         This is the transcript so far, for context. It has been edited: \
+         answer only the message that follows it.\n",
+    );
+    for m in prior {
+        let who = match m.role {
+            Role::User => "User",
+            Role::Assistant => "Claude",
+            Role::System => continue,
+        };
+        let body = m.content.trim();
+        if body.is_empty() && m.attachments.is_empty() {
+            continue;
+        }
+        out.push_str(&format!("\n### {who}\n{body}\n"));
+        for a in &m.attachments {
+            out.push_str(&format!("[attachment: {}]\n", a.filename));
+        }
+    }
+    out
+}
+
 /// Should this stored row be replayed to the provider?
 fn is_replayable(m: &Message) -> bool {
     match m.status {
@@ -232,7 +280,7 @@ pub fn plan_request(
         .map(|p| p.instructions)
         .filter(|s| !s.trim().is_empty());
 
-    let system = compose_system(
+    let mut system = compose_system(
         project_instructions.as_deref(),
         conversation.system_prompt.as_deref(),
     );
@@ -242,6 +290,21 @@ pub fn plan_request(
 
     if messages.is_empty() {
         return Err(AppError::invalid("There is nothing to send yet."));
+    }
+
+    // Only the final turn is sent on the wire; everything before it normally
+    // lives in the CLI's own session. When there is no session to resume,
+    // that history has to travel some other way.
+    if rebuilding_context(&conversation, messages.len()) {
+        let replayable: Vec<Message> = history.into_iter().filter(is_replayable).collect();
+        let prior = &replayable[..replayable.len().saturating_sub(1)];
+        if !prior.is_empty() {
+            let transcript = render_prior_turns(prior);
+            system = Some(match system {
+                Some(s) => format!("{s}\n\n{transcript}"),
+                None => transcript,
+            });
+        }
     }
 
     Ok(RequestPlan {
@@ -283,7 +346,7 @@ fn working_dir(db: &Db, conversation: &Conversation) -> std::path::PathBuf {
     crate::paths::session_dir()
 }
 
-fn provider_for(db: &Db, conversation: &Conversation) -> Result<ClaudeCodeProvider> {
+fn provider_for(db: &Db, conversation: &Conversation, fresh: bool) -> Result<ClaudeCodeProvider> {
     // The conversation id doubles as the Claude Code session id — it is
     // already a UUID, which is what `--session-id` requires. The first turn
     // claims it; later turns resume it.
@@ -301,6 +364,10 @@ fn provider_for(db: &Db, conversation: &Conversation) -> Result<ClaudeCodeProvid
             Some(from) => SessionRef::Fork {
                 from: from.to_string(),
             },
+            // The conversation id seeds the first session. A rebuild cannot
+            // reuse it — the CLI rejects a `--session-id` it already knows —
+            // so later ones get an id of their own.
+            None if !fresh => SessionRef::New(crate::db::models::new_id()),
             None => SessionRef::New(conversation.id.clone()),
         },
     };
@@ -393,6 +460,71 @@ pub async fn retry(
         if last.role == Role::Assistant {
             repo::messages::delete_from_seq(tx, &conversation_id, last.seq)?;
         }
+
+        let model = repo::conversations::get(tx, &conversation_id)?.model;
+        let assistant = repo::messages::insert(
+            tx,
+            repo::messages::NewMessage {
+                conversation_id: &conversation_id,
+                role: Role::Assistant,
+                content: "",
+                status: MessageStatus::Streaming,
+                model: Some(&model),
+            },
+        )?;
+        Ok(assistant.id)
+    })?;
+
+    spawn_stream(app, state, conversation_id, assistant_id.clone());
+    Ok(assistant_id)
+}
+
+/// Rewrite a user turn, discard everything after it, and answer again.
+///
+/// The CLI session cannot be rewound, so the one holding the removed turns
+/// is abandoned: clearing `provider_conversation_id` makes the next request
+/// build a fresh session, with the surviving history carried in the system
+/// prompt instead. See `rebuilding_context`.
+pub async fn edit_and_resend(
+    app: AppHandle,
+    state: Arc<AppState>,
+    conversation_id: String,
+    message_id: String,
+    text: String,
+) -> Result<String> {
+    if state.is_streaming(&conversation_id) {
+        return Err(AppError::invalid(
+            "This conversation is already generating a reply.",
+        ));
+    }
+    if text.trim().is_empty() {
+        return Err(AppError::invalid("An edited message cannot be empty."));
+    }
+    let db = state.db.clone();
+
+    let assistant_id = db.tx(|tx| {
+        let target = repo::messages::get(tx, &message_id)?;
+        if target.conversation_id != conversation_id {
+            return Err(AppError::invalid("That message is in another conversation."));
+        }
+        if target.role != Role::User {
+            return Err(AppError::invalid("Only your own messages can be edited."));
+        }
+
+        // Rewrite in place rather than replacing the row: the turn keeps its
+        // `seq` and its attachments stay attached to it.
+        tx.execute(
+            "UPDATE messages SET content = ?2, updated_at = ?3 WHERE id = ?1",
+            rusqlite::params![target.id, text.trim(), now_ms()],
+        )?;
+        // Everything after it is now answering a question that was not asked.
+        repo::messages::delete_from_seq(tx, &conversation_id, target.seq + 1)?;
+
+        // Abandon the session that still holds the turns just removed.
+        tx.execute(
+            "UPDATE conversations SET provider_conversation_id = NULL WHERE id = ?1",
+            rusqlite::params![conversation_id],
+        )?;
 
         let model = repo::conversations::get(tx, &conversation_id)?.model;
         let assistant = repo::messages::insert(
@@ -524,7 +656,11 @@ async fn run_stream(
         Ok(p) => p,
         Err(e) => return finish_with_error(app, &db, conversation_id, message_id, e, ""),
     };
-    let provider = match provider_for(&db, &plan.conversation) {
+    // A conversation whose transcript was truncated cannot resume its old
+    // session; plan_request has already moved that history into the system
+    // prompt, and this gives it a session id the CLI has not seen.
+    let fresh = !rebuilding_context(&plan.conversation, plan.request.messages.len());
+    let provider = match provider_for(&db, &plan.conversation, fresh) {
         Ok(p) => p,
         Err(e) => return finish_with_error(app, &db, conversation_id, message_id, e, ""),
     };

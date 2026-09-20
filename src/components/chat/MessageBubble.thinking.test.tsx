@@ -37,6 +37,7 @@ const props = {
   onRetry: () => {},
   onContinue: () => {},
   onBranch: () => {},
+  onEdit: () => {},
   onCopy: () => {},
 };
 

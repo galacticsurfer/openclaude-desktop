@@ -411,6 +411,16 @@ pub fn parse_line(line: &str) -> CliRecord {
             }
         }
 
+        // A richer reasoning signal than the `thinking_delta` path: that one
+        // carries empty text and only sometimes an estimate, while this
+        // carries a real running total.
+        "system" if v.get("subtype").and_then(|s| s.as_str()) == Some("thinking_tokens") => {
+            match v.get("estimated_tokens").and_then(|n| n.as_i64()) {
+                Some(n) => CliRecord::Stream(StreamEvent::ThinkingProgress(n)),
+                None => CliRecord::Ignored,
+            }
+        }
+
         "stream_event" => {
             let Some(event) = v.get("event") else {
                 return CliRecord::Ignored;
@@ -796,6 +806,22 @@ mod tests {
             temperature: None,
             stop_sequences: vec![],
         }
+    }
+
+    #[test]
+    fn a_thinking_tokens_system_record_reports_the_running_total() {
+        let line = r#"{"type":"system","subtype":"thinking_tokens",
+            "estimated_tokens":162,"estimated_tokens_delta":112,"session_id":"s"}"#;
+        assert_eq!(
+            parse_line(line),
+            CliRecord::Stream(StreamEvent::ThinkingProgress(162))
+        );
+    }
+
+    #[test]
+    fn a_thinking_tokens_record_without_a_total_is_ignored() {
+        let line = r#"{"type":"system","subtype":"thinking_tokens","session_id":"s"}"#;
+        assert_eq!(parse_line(line), CliRecord::Ignored);
     }
 
     #[test]
