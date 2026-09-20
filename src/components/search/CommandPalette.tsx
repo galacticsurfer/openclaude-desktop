@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Archive, Download, FolderPlus, Keyboard, MessageSquarePlus, Moon, PanelLeft,
-  RefreshCw, Search, Settings, Sun, Trash2, GitBranch, Monitor, BookMarked,
-} from 'lucide-react';
+  RefreshCw, Search, Settings, Sun, Trash2, GitBranch, Monitor, BookMarked, SquareTerminal } from 'lucide-react';
 import { useConversationStore } from '@/stores/useConversationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -87,6 +86,13 @@ export function CommandPalette() {
         icon: <Keyboard size={15} />,
         shortcut: 'Ctrl /',
         run: () => openOverlay({ kind: 'shortcuts' }),
+      },
+      {
+        id: 'terminal',
+        label: 'Toggle terminal',
+        icon: <SquareTerminal size={15} />,
+        shortcut: 'Ctrl `',
+        run: () => useUIStore.getState().toggleTerminal(),
       },
       {
         id: 'prompts',

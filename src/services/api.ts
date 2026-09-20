@@ -168,6 +168,19 @@ export const deleteProject = (id: string) => invoke<void>('delete_project', { id
 export const setQuickChatShortcut = (accelerator: string) =>
   invoke<void>('set_quick_chat_shortcut', { accelerator });
 
+// --- embedded terminal ----------------------------------------------------
+//
+// Driven by the user only. Nothing in the chat path calls these, and no
+// command here returns shell output anywhere but the terminal widget.
+
+export const shellOpen = (id: string, projectId: string | null) =>
+  invoke<void>('shell_open', { id, projectId });
+export const shellWrite = (id: string, data: string) =>
+  invoke<void>('shell_write', { id, data });
+export const shellResize = (id: string, rows: number, cols: number) =>
+  invoke<void>('shell_resize', { id, rows, cols });
+export const shellClose = (id: string) => invoke<void>('shell_close', { id });
+
 // --- MCP ------------------------------------------------------------------
 
 export const listMcpServers = () => invoke<McpServer[]>('list_mcp_servers');

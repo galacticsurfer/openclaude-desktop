@@ -3,6 +3,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { Sidebar } from './Sidebar';
 import { ChatView } from '@/components/chat/ChatView';
 import { TabStrip } from './TabStrip';
+import { TerminalPanel } from '@/components/terminal/TerminalPanel';
 import { ArtifactPanel } from '@/components/artifacts/ArtifactPanel';
 import { SearchPalette } from '@/components/search/SearchPalette';
 import { CommandPalette } from '@/components/search/CommandPalette';
@@ -112,6 +113,7 @@ export function AppShell() {
           else clearCurrent();
         },
       },
+      { key: '`', ctrl: true, allowInInput: true, run: () => useUIStore.getState().toggleTerminal() },
       { key: 'b', ctrl: true, allowInInput: true, run: toggleSidebar },
       { key: 'n', ctrl: true, shift: true, allowInInput: true, run: () => openOverlay({ kind: 'newProject' }) },
       {
@@ -177,6 +179,7 @@ export function AppShell() {
         <div className="min-h-0 flex-1">
           <ChatView />
         </div>
+        <TerminalPanel />
       </main>
 
       <ArtifactPanel />

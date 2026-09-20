@@ -65,6 +65,7 @@ export const SHORTCUTS: Array<{ keys: string; label: string; group: string }> = 
   { keys: 'Ctrl+/', label: 'Keyboard shortcuts', group: 'General' },
   { keys: 'Ctrl+B', label: 'Toggle sidebar', group: 'View' },
   { keys: 'Ctrl+W', label: 'Close tab', group: 'View' },
+  { keys: 'Ctrl+`', label: 'Toggle terminal', group: 'View' },
   { keys: 'Ctrl+Shift+N', label: 'New project', group: 'General' },
   { keys: 'Ctrl+L', label: 'Focus conversation list', group: 'View' },
   { keys: 'Enter', label: 'Send message', group: 'Composer' },

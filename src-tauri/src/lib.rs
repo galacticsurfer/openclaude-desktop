@@ -25,6 +25,7 @@ pub mod paths;
 pub mod provider;
 pub mod quick_chat;
 pub mod settings_defaults;
+pub mod shell;
 pub mod state;
 pub mod tray;
 
@@ -116,6 +117,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(state.clone())
+        .manage(crate::shell::SharedShells::default())
         .setup({
             let state = state.clone();
             move |app| {
@@ -149,6 +151,13 @@ pub fn run() {
                     // Let running generations finalise their rows rather than
                     // leaving them to be recovered on next launch.
                     state.cancel_all();
+                    // And do not leave orphan shells behind.
+                    if let Some(shells) = window
+                        .app_handle()
+                        .try_state::<crate::shell::SharedShells>()
+                    {
+                        shells.close_all();
+                    }
                 }
                 _ => {}
             }
@@ -204,6 +213,10 @@ pub fn run() {
             commands::mcp::list_mcp_permissions,
             commands::mcp::decide_mcp_tool,
             commands::mcp::discover_mcp_tools,
+            commands::shell::shell_open,
+            commands::shell::shell_write,
+            commands::shell::shell_resize,
+            commands::shell::shell_close,
             commands::prompts::list_prompts,
             commands::prompts::create_prompt,
             commands::prompts::update_prompt,
