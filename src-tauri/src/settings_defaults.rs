@@ -9,6 +9,10 @@ pub const TEMPERATURE: &str = "claude.temperature";
 pub const AUTO_TITLE: &str = "claude.autoTitle";
 pub const TITLE_MODEL: &str = "claude.titleModel";
 pub const BASE_URL: &str = "claude.baseUrl";
+/// `apiKey` or `oauth` — see `secrets::AuthMode`.
+pub const AUTH_MODE: &str = "claude.authMode";
+/// Which Anthropic CLI profile to use when `AUTH_MODE` is `oauth`.
+pub const OAUTH_PROFILE: &str = "claude.oauthProfile";
 
 pub const THEME: &str = "appearance.theme";
 pub const FONT_SIZE: &str = "appearance.fontSize";
@@ -62,6 +66,8 @@ pub fn defaults() -> Value {
         AUTO_TITLE: true,
         TITLE_MODEL: Value::Null,
         BASE_URL: Value::Null,
+        AUTH_MODE: "apiKey",
+        OAUTH_PROFILE: Value::Null,
 
         THEME: "system",
         FONT_SIZE: 15,

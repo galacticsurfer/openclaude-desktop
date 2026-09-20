@@ -8,6 +8,8 @@
 import { invoke } from './ipc';
 import type {
   AddAttachmentsResult,
+  AuthMode,
+  AuthOptions,
   AppInfo,
   Attachment,
   Conversation,
@@ -143,6 +145,13 @@ export const setApiKey = (key: string) => invoke<CredentialStatus>('set_api_key'
 export const deleteApiKey = () => invoke<CredentialStatus>('delete_api_key');
 export const testApiKey = (key?: string) =>
   invoke<TestResult>('test_api_key', { key: key ?? null });
+
+/** Credential state plus whether browser sign-in is possible, in one call. */
+export const authOptions = () => invoke<AuthOptions>('auth_options');
+export const oauthBeginLogin = (profile?: string | null) =>
+  invoke<void>('oauth_begin_login', { profile: profile ?? null });
+export const setAuthMode = (mode: AuthMode) =>
+  invoke<AuthOptions>('set_auth_mode', { mode });
 
 // --- settings & models ----------------------------------------------------
 

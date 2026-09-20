@@ -10,6 +10,7 @@ use openclaude_lib::provider::{
     anthropic::AnthropicProvider, AIProvider, ChatRequest, ContentBlock, ProviderMessage,
     StreamEvent,
 };
+use openclaude_lib::secrets::Credential;
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -30,7 +31,19 @@ fn req(model: &str) -> ChatRequest {
 }
 
 fn provider(server: &MockServer) -> AnthropicProvider {
-    AnthropicProvider::new("sk-ant-test-0123456789abcdef".into(), Some(server.uri())).unwrap()
+    AnthropicProvider::new(
+        Credential::ApiKey("sk-ant-test-0123456789abcdef".into()),
+        Some(server.uri()),
+    )
+    .unwrap()
+}
+
+fn oauth_provider(server: &MockServer) -> AnthropicProvider {
+    AnthropicProvider::new(
+        Credential::Oauth("sk-ant-oat01-test-token".into()),
+        Some(server.uri()),
+    )
+    .unwrap()
 }
 
 /// `EventStream` is not `Debug`, so `unwrap_err` is unavailable on it.
@@ -286,7 +299,7 @@ async fn verify_credentials_distinguishes_a_good_key_from_a_bad_one() {
 async fn an_unreachable_host_reports_as_offline() {
     // Port 1 is reserved and refuses immediately.
     let p = AnthropicProvider::new(
-        "sk-ant-x0123456789abcdef".into(),
+        Credential::ApiKey("sk-ant-x0123456789abcdef".into()),
         Some("http://127.0.0.1:1".into()),
     )
     .unwrap();
@@ -319,4 +332,72 @@ async fn the_request_body_carries_system_prompt_and_limits() {
     assert_eq!(body["stream"], true);
     // Absent fields must be omitted, not sent as null.
     assert!(body.get("stop_sequences").is_none());
+}
+
+// --- credential handling --------------------------------------------------
+
+#[tokio::test]
+async fn an_api_key_is_sent_as_x_api_key_and_nothing_else() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse_body(&["ok"], "end_turn")))
+        .mount(&server)
+        .await;
+
+    let mut s = provider(&server).stream_message(req("m")).await.unwrap();
+    while s.next().await.is_some() {}
+
+    let sent = &server.received_requests().await.unwrap()[0];
+    assert_eq!(
+        sent.headers.get("x-api-key").unwrap(),
+        "sk-ant-test-0123456789abcdef"
+    );
+    // Sending both credential headers is rejected by the API.
+    assert!(sent.headers.get("authorization").is_none());
+}
+
+#[tokio::test]
+async fn an_oauth_token_is_sent_as_a_bearer_with_the_beta_opt_in() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse_body(&["ok"], "end_turn")))
+        .mount(&server)
+        .await;
+
+    let mut s = oauth_provider(&server)
+        .stream_message(req("m"))
+        .await
+        .unwrap();
+    while s.next().await.is_some() {}
+
+    let sent = &server.received_requests().await.unwrap()[0];
+    assert_eq!(
+        sent.headers.get("authorization").unwrap(),
+        "Bearer sk-ant-oat01-test-token"
+    );
+    // /v1/messages rejects an OAuth token without this opt-in.
+    assert_eq!(
+        sent.headers.get("anthropic-beta").unwrap(),
+        "oauth-2025-04-20"
+    );
+    // An OAuth token in x-api-key would be rejected, and sending both is too.
+    assert!(sent.headers.get("x-api-key").is_none());
+}
+
+#[tokio::test]
+async fn oauth_is_used_for_plain_requests_too_not_just_streaming() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    oauth_provider(&server).verify_credentials().await.unwrap();
+
+    let sent = &server.received_requests().await.unwrap()[0];
+    assert!(sent.headers.get("authorization").is_some());
+    assert_eq!(
+        sent.headers.get("anthropic-beta").unwrap(),
+        "oauth-2025-04-20"
+    );
 }

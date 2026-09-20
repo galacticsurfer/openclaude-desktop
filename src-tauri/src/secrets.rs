@@ -14,6 +14,55 @@
 use crate::error::{AppError, Result};
 use std::sync::{Mutex, OnceLock};
 
+/// How a request proves who it is.
+///
+/// The two mechanisms are not interchangeable at the header level: an API key
+/// goes in `x-api-key`, while an OAuth token is a bearer credential and also
+/// needs a beta opt-in that `/v1/messages` rejects requests without. Modelling
+/// that as a type means the provider cannot get it subtly wrong, and means
+/// neither variant is ever logged by accident — `Debug` is implemented by hand
+/// below to redact both.
+#[derive(Clone)]
+pub enum Credential {
+    /// A key from the system keyring.
+    ApiKey(String),
+    /// A short-lived OAuth access token minted by the Anthropic CLI.
+    Oauth(String),
+}
+
+impl Credential {
+    pub fn secret(&self) -> &str {
+        match self {
+            Self::ApiKey(k) | Self::Oauth(k) => k,
+        }
+    }
+
+    pub fn is_oauth(&self) -> bool {
+        matches!(self, Self::Oauth(_))
+    }
+}
+
+// Deriving Debug would print the secret the moment anything logs a struct
+// that contains one.
+impl std::fmt::Debug for Credential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ApiKey(_) => f.write_str("Credential::ApiKey(<redacted>)"),
+            Self::Oauth(_) => f.write_str("Credential::Oauth(<redacted>)"),
+        }
+    }
+}
+
+/// Which sign-in method the app is configured to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthMode {
+    #[default]
+    ApiKey,
+    /// Browser sign-in through the Anthropic CLI.
+    Oauth,
+}
+
 const SERVICE: &str = "openclaude-desktop";
 
 /// Which backend actually holds the key right now.
@@ -31,6 +80,8 @@ pub enum SecretBackend {
 pub struct CredentialStatus {
     pub configured: bool,
     pub backend: SecretBackend,
+    /// Which method is in use, so the UI can label the state correctly.
+    pub mode: AuthMode,
     /// Last four characters only, so the user can tell two keys apart without
     /// the full value ever crossing the IPC boundary.
     pub hint: Option<String>,
@@ -114,6 +165,7 @@ pub fn status(provider: &str) -> CredentialStatus {
         }),
         configured: key.is_some(),
         backend: backend(),
+        mode: AuthMode::ApiKey,
     }
 }
 
@@ -162,10 +214,33 @@ mod tests {
         let s = CredentialStatus {
             configured: true,
             backend: SecretBackend::MemoryOnly,
+            mode: AuthMode::ApiKey,
             hint: Some("wxyz".into()),
         };
         let json = serde_json::to_string(&s).unwrap();
         assert!(!json.contains("sk-"));
         assert_eq!(s.hint.unwrap().len(), 4);
+    }
+}
+
+#[cfg(test)]
+mod credential_tests {
+    use super::*;
+
+    #[test]
+    fn debug_never_prints_the_secret() {
+        // A struct holding a Credential can end up in a log line or a panic
+        // message; neither may carry the token.
+        let key = Credential::ApiKey("sk-ant-super-secret-value".into());
+        let oauth = Credential::Oauth("sk-ant-oat01-secret-value".into());
+        for c in [&key, &oauth] {
+            let printed = format!("{c:?}");
+            assert!(printed.contains("redacted"), "{printed}");
+            assert!(!printed.contains("secret"), "{printed}");
+        }
+        // The value is still reachable deliberately.
+        assert_eq!(key.secret(), "sk-ant-super-secret-value");
+        assert!(oauth.is_oauth());
+        assert!(!key.is_oauth());
     }
 }

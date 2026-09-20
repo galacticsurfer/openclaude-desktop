@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ExternalLink, KeyRound, Loader2, ShieldCheck, XCircle } from 'lucide-react';
 import * as api from '@/services/api';
 import { AppError } from '@/services/ipc';
@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Switch } from '@/components/ui/Switch';
 import { openExternal } from '@/lib/external';
+import { SignInOptions } from './SignInOptions';
+import type { AuthOptions } from '@/types';
 
 type TestState =
   | { phase: 'idle' }
@@ -28,6 +30,23 @@ export function Welcome({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [autoTitle, setAutoTitle] = useState(settings?.['claude.autoTitle'] ?? true);
   const [backend, setBackend] = useState<'keyring' | 'memoryOnly' | null>(null);
+  const [auth, setAuth] = useState<AuthOptions | null>(null);
+
+  const refreshAuth = useCallback(async () => {
+    const next = await api.authOptions().catch(() => null);
+    setAuth(next);
+    // Browser sign-in completing is enough to get past this screen.
+    if (next?.mode === 'oauth' && next.cli.signedIn) {
+      await set('ui.onboarded', true);
+      await refreshCredentials();
+      await refreshModels(true);
+      onDone();
+    }
+  }, [set, refreshCredentials, refreshModels, onDone]);
+
+  useEffect(() => {
+    void refreshAuth();
+  }, [refreshAuth]);
 
   async function runTest() {
     setTest({ phase: 'testing' });
@@ -73,6 +92,19 @@ export function Welcome({ onDone }: { onDone: () => void }) {
         </div>
 
         <div className="space-y-5 rounded-xl border border-line bg-surface p-5 shadow-subtle">
+          <SignInOptions
+            options={auth}
+            onChanged={refreshAuth}
+            onChooseApiKey={() => document.getElementById('apikey')?.focus()}
+          />
+
+          <div className="relative py-0.5 text-center">
+            <span className="relative z-10 bg-surface px-2 text-[11.5px] uppercase tracking-wide text-ink-faint">
+              or
+            </span>
+            <span className="absolute left-0 right-0 top-1/2 h-px bg-line" aria-hidden />
+          </div>
+
           <div className="space-y-1.5">
             <label htmlFor="apikey" className="block text-[13px] font-medium text-ink">
               Anthropic API key

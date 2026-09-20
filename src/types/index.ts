@@ -143,9 +143,30 @@ export interface UsageTotals {
 
 export type SecretBackend = 'keyring' | 'memoryOnly';
 
+/** How the app authenticates: a stored API key, or browser sign-in. */
+export type AuthMode = 'apiKey' | 'oauth';
+
+export interface CliStatus {
+  /** Whether the Anthropic CLI (`ant`) is installed. */
+  available: boolean;
+  /** Whether a profile is signed in and can mint a token right now. */
+  signedIn: boolean;
+  /** `ant auth status` output — names the org/workspace, never a token. */
+  detail: string | null;
+  profile: string | null;
+}
+
+export interface AuthOptions {
+  credentials: CredentialStatus;
+  cli: CliStatus;
+  mode: AuthMode;
+  profile: string | null;
+}
+
 export interface CredentialStatus {
   configured: boolean;
   backend: SecretBackend;
+  mode: AuthMode;
   /** Last four characters only. The key itself never crosses IPC. */
   hint: string | null;
 }
@@ -252,6 +273,8 @@ export interface Settings {
   'claude.autoTitle': boolean;
   'claude.titleModel': string | null;
   'claude.baseUrl': string | null;
+  'claude.authMode': AuthMode;
+  'claude.oauthProfile': string | null;
 
   'appearance.theme': ThemePreference;
   'appearance.fontSize': number;

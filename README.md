@@ -94,8 +94,21 @@ Ubuntu 24.04+, Debian 13+, Fedora 39+, Arch, or anything else with
 **WebKitGTK 4.1**. Distributions carrying only webkit2gtk 4.0 (Ubuntu 22.04,
 Debian 11) cannot run this — a Tauri 2 constraint, not a choice.
 
-On first launch you will be asked for an Anthropic API key. It goes into your
-system keyring and nowhere else.
+### Connecting your account
+
+On first launch you can connect in either of two ways:
+
+- **Sign in with your browser** — if the
+  [Anthropic CLI](https://github.com/anthropics/anthropic-cli) (`ant`) is
+  installed, OpenClaude offers `ant auth login`: a browser sign-in with an
+  org/workspace picker and a short-lived token that refreshes itself. Nothing
+  long-lived is stored by this app.
+- **Paste an API key** — stored in your system keyring and nowhere else.
+
+**Both bill your Anthropic API account.** Neither uses a Claude Pro or Max
+subscription: subscription-backed usage is available only to Anthropic's own
+first-party clients, and this app will not impersonate one or read their
+credentials. See [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md).
 
 ## Features
 

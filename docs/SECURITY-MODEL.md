@@ -21,6 +21,41 @@ jewel.
 Everything rendered in the webview — model output, attached file contents,
 search snippets — is treated as untrusted data.
 
+## Authentication
+
+Two supported mechanisms, both authenticating to the Anthropic **API**:
+
+| | Stored where | Header |
+| --- | --- | --- |
+| API key | System keyring | `x-api-key` |
+| Browser sign-in | Anthropic CLI profile (`~/.config/anthropic`) | `Authorization: Bearer` + `anthropic-beta: oauth-2025-04-20` |
+
+Modelled as a `Credential` enum rather than a bare string, so the provider
+cannot send the wrong header pair — sending both an `x-api-key` and an
+`Authorization` header is rejected by the API, and `/v1/messages` rejects an
+OAuth token without the beta opt-in. `Credential` implements `Debug` by hand
+to redact itself, so a struct containing one cannot leak the secret into a log
+line or a panic message.
+
+### What is deliberately not implemented
+
+Claude Code's `/login` is a **first-party** OAuth flow: Anthropic registered
+Claude Code as its own OAuth client, and subscription-backed usage is tied to
+that client. A third-party application could only join it by embedding that
+client id — impersonating a first-party application — or by reading
+`~/.claude/.credentials.json`. Both are out of bounds, so neither is
+implemented: nothing in this codebase reads `~/.claude`, and there is no
+embedded OAuth client id.
+
+The supported equivalent is the Anthropic CLI's own OAuth (`ant auth login`),
+whose profile the official SDKs already share. OpenClaude asks the CLI for a
+token (`ant auth print-credentials --access-token`) rather than parsing its
+credential files, so token storage and refresh remain the CLI's concern. The
+token is fetched per request: it is short-lived, the CLI owns refresh, and one
+subprocess is negligible beside a completion. The CLI is invoked directly —
+never through a shell — and a profile name is validated against
+`[A-Za-z0-9._-]{1,64}` before it becomes an argument.
+
 ## The API key
 
 Rules, enforced structurally rather than by convention:

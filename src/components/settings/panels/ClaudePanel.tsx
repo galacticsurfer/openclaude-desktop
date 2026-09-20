@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ExternalLink, KeyRound, ShieldAlert, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import * as api from '@/services/api';
 import { AppError } from '@/services/ipc';
@@ -10,6 +10,8 @@ import { Select } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { Group, Row } from '../SettingsDialog';
 import { openExternal } from '@/lib/external';
+import { SignInOptions } from '@/components/onboarding/SignInOptions';
+import type { AuthOptions } from '@/types';
 
 export function ClaudePanel() {
   const { settings, set, credentials, refreshCredentials, models, refreshModels, modelsStale } =
@@ -18,6 +20,16 @@ export function ClaudePanel() {
   const [newKey, setNewKey] = useState('');
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [auth, setAuth] = useState<AuthOptions | null>(null);
+
+  const refreshAuth = useCallback(async () => {
+    setAuth(await api.authOptions().catch(() => null));
+    await refreshCredentials();
+  }, [refreshCredentials]);
+
+  useEffect(() => {
+    void refreshAuth();
+  }, [refreshAuth]);
 
   if (!settings) return null;
 
@@ -47,6 +59,29 @@ export function ClaudePanel() {
 
   return (
     <>
+      <Group
+        title="Sign-in method"
+        description="Browser sign-in avoids storing a long-lived key. Both bill your Anthropic API account."
+      >
+        <div className="space-y-3 py-2">
+          <SignInOptions options={auth} onChanged={refreshAuth} />
+          {auth?.mode === 'oauth' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                void api
+                  .setAuthMode('apiKey')
+                  .then(refreshAuth)
+                  .catch((e) => toast('error', AppError.from(e).message));
+              }}
+            >
+              Switch back to an API key
+            </Button>
+          )}
+        </div>
+      </Group>
+
       <Group title="API key">
         <div className="space-y-3 py-2">
           {credentials?.configured ? (

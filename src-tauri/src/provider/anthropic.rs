@@ -8,6 +8,7 @@
 use super::sse::SseDecoder;
 use super::{AIProvider, ChatRequest, EventStream, ModelInfo, StreamEvent};
 use crate::error::{AppError, ErrorDetail, Result};
+use crate::secrets::Credential;
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::json;
@@ -26,12 +27,12 @@ pub const FALLBACK_MODELS: &[(&str, &str)] = &[
 
 pub struct AnthropicProvider {
     http: reqwest::Client,
-    api_key: String,
+    credential: Credential,
     base_url: String,
 }
 
 impl AnthropicProvider {
-    pub fn new(api_key: String, base_url: Option<String>) -> Result<Self> {
+    pub fn new(credential: Credential, base_url: Option<String>) -> Result<Self> {
         let http = reqwest::Client::builder()
             // Generous: a long answer legitimately streams for minutes. The
             // per-read timeout below is what actually catches a dead socket.
@@ -43,17 +44,31 @@ impl AnthropicProvider {
 
         Ok(Self {
             http,
-            api_key,
+            credential,
             base_url: base_url.unwrap_or_else(|| DEFAULT_BASE_URL.to_string()),
         })
     }
 
+    /// Apply the credential.
+    ///
+    /// The two mechanisms differ in more than the header name: an OAuth token
+    /// is a bearer credential *and* needs the beta opt-in, which
+    /// `/v1/messages` rejects requests without. Sending both an `x-api-key`
+    /// and an `Authorization` header is also rejected, so it is strictly
+    /// one or the other.
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
-        self.http
+        let req = self
+            .http
             .request(method, format!("{}{path}", self.base_url))
-            .header("x-api-key", &self.api_key)
             .header("anthropic-version", API_VERSION)
-            .header("content-type", "application/json")
+            .header("content-type", "application/json");
+
+        match &self.credential {
+            Credential::ApiKey(key) => req.header("x-api-key", key),
+            Credential::Oauth(token) => req
+                .header("authorization", format!("Bearer {token}"))
+                .header("anthropic-beta", crate::oauth::OAUTH_BETA_HEADER),
+        }
     }
 
     fn body(req: &ChatRequest, stream: bool) -> serde_json::Value {

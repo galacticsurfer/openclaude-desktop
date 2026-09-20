@@ -186,7 +186,9 @@ export function ChatView() {
               body={
                 credentials?.configured
                   ? 'Type below, or drop in a file to discuss.'
-                  : 'Add your Anthropic API key in Settings first.'
+                  : credentials?.mode === 'oauth'
+                    ? 'Sign in from Settings → Claude first.'
+                    : 'Add your Anthropic API key in Settings first.'
               }
             />
           ) : (

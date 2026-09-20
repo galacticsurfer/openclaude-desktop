@@ -83,22 +83,22 @@ pub async fn list_models(app: tauri::AppHandle, refresh: Option<bool>) -> Result
         }
     }
 
-    let (key, base_url) = {
+    let base_url: Option<String> = {
         let conn = state.db.conn();
-        (
-            crate::secrets::get_api_key("anthropic")?,
-            repo::get_or(&conn, sk::BASE_URL, None),
-        )
+        repo::get_or(&conn, sk::BASE_URL, None)
     };
 
-    let Some(key) = key else {
+    // No credential yet (first launch, or signed out) is an ordinary state,
+    // not an error: fall back to the built-in list so a model can still be
+    // chosen offline.
+    let Ok(credential) = crate::chat::resolve_credential(&state.db) else {
         return Ok(ModelListResult {
             models: crate::provider::anthropic::fallback_models(),
             stale: true,
         });
     };
 
-    let provider = crate::provider::anthropic::AnthropicProvider::new(key, base_url)?;
+    let provider = crate::provider::anthropic::AnthropicProvider::new(credential, base_url)?;
     match provider.list_models().await {
         Ok(models) if !models.is_empty() => {
             let mut cache = state.models.lock().unwrap();

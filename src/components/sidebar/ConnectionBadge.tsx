@@ -27,18 +27,34 @@ export function ConnectionBadge() {
     };
   }, []);
 
+  const oauth = credentials?.mode === 'oauth';
+
   const state = !credentials?.configured
-    ? { icon: KeyRound, tone: 'text-warn', label: 'No API key', hint: 'Add your Anthropic API key' }
+    ? oauth
+      ? {
+          icon: KeyRound,
+          tone: 'text-warn',
+          label: 'Not signed in',
+          hint: 'Sign in with your browser, or add an API key',
+        }
+      : { icon: KeyRound, tone: 'text-warn', label: 'No API key', hint: 'Add your Anthropic API key' }
     : !online
       ? { icon: WifiOff, tone: 'text-ink-faint', label: 'Offline', hint: 'History is still available' }
-      : credentials.backend === 'memoryOnly'
+      : oauth
         ? {
-            icon: ShieldAlert,
-            tone: 'text-warn',
-            label: 'Key not saved',
-            hint: 'No system keyring — the key is held for this session only',
+            icon: Wifi,
+            tone: 'text-success',
+            label: 'Signed in',
+            hint: 'Using browser sign-in via the Anthropic CLI',
           }
-        : { icon: Wifi, tone: 'text-success', label: 'Connected', hint: 'Ready' };
+        : credentials.backend === 'memoryOnly'
+          ? {
+              icon: ShieldAlert,
+              tone: 'text-warn',
+              label: 'Key not saved',
+              hint: 'No system keyring — the key is held for this session only',
+            }
+          : { icon: Wifi, tone: 'text-success', label: 'Connected', hint: 'Ready' };
 
   const Icon = state.icon;
 

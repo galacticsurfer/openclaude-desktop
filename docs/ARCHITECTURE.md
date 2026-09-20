@@ -55,6 +55,17 @@ know Tauri exists beyond emitting events. That is what lets the whole core be
 tested with no window on screen — the integration suites in `src-tauri/tests/`
 never start a Tauri app.
 
+### Authentication
+
+Two mechanisms behind one `Credential` type: an API key from the keyring, or a
+short-lived OAuth token from the Anthropic CLI (`ant auth login`). `chat.rs`
+resolves whichever the `claude.authMode` setting names; everything downstream
+just sees a `Credential`, and the provider derives the correct headers from
+its variant.
+
+Claude Code's `/login` is a first-party flow and deliberately not reused — see
+[SECURITY-MODEL.md](SECURITY-MODEL.md).
+
 ### Why the HTTP client is in Rust
 
 It would have been less code to call the API from TypeScript. Putting it in

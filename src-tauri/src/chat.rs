@@ -9,6 +9,7 @@ use crate::provider::{
     anthropic::AnthropicProvider, AIProvider, ChatRequest, ContentBlock, MediaSource,
     ProviderMessage, StreamEvent,
 };
+use crate::secrets::{AuthMode, Credential};
 use crate::settings_defaults as sk;
 use crate::state::{AppState, StreamHandle};
 use base64::Engine;
@@ -245,13 +246,38 @@ pub fn plan_request(
 
 // --- running a generation -------------------------------------------------
 
+/// Resolve whichever credential the app is configured to use.
+///
+/// The OAuth token is fetched fresh on every call rather than cached: it is
+/// short-lived, the Anthropic CLI already owns refresh, and one ~50ms
+/// subprocess is noise beside a multi-second completion. Caching it here
+/// would mean reimplementing expiry logic that belongs to the CLI.
+pub fn resolve_credential(db: &Db) -> Result<Credential> {
+    let (mode, profile): (AuthMode, Option<String>) = {
+        let conn = db.conn();
+        (
+            repo::settings::get_or(&conn, sk::AUTH_MODE, AuthMode::ApiKey),
+            repo::settings::get_or(&conn, sk::OAUTH_PROFILE, None),
+        )
+    };
+
+    match mode {
+        AuthMode::Oauth => Ok(Credential::Oauth(crate::oauth::access_token(
+            profile.as_deref(),
+        )?)),
+        AuthMode::ApiKey => crate::secrets::get_api_key("anthropic")?
+            .map(Credential::ApiKey)
+            .ok_or(AppError::MissingCredentials),
+    }
+}
+
 fn provider_for(db: &Db, base_url: Option<String>) -> Result<AnthropicProvider> {
-    let key = crate::secrets::get_api_key("anthropic")?.ok_or(AppError::MissingCredentials)?;
+    let credential = resolve_credential(db)?;
     let base = base_url.or_else(|| {
         let conn = db.conn();
         repo::settings::get_or(&conn, sk::BASE_URL, None)
     });
-    AnthropicProvider::new(key, base)
+    AnthropicProvider::new(credential, base)
 }
 
 /// Append a user turn and start generating a reply.
@@ -794,10 +820,10 @@ fn maybe_generate_title(app: AppHandle, state: Arc<AppState>, conversation_id: S
             return;
         }
 
-        let Ok(Some(key)) = crate::secrets::get_api_key("anthropic") else {
+        let Ok(credential) = resolve_credential(&db) else {
             return;
         };
-        let Ok(provider) = AnthropicProvider::new(key, base_url) else {
+        let Ok(provider) = AnthropicProvider::new(credential, base_url) else {
             return;
         };
 

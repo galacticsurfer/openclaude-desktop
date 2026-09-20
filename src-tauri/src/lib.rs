@@ -19,6 +19,7 @@ pub mod commands;
 pub mod db;
 pub mod error;
 pub mod export;
+pub mod oauth;
 pub mod paths;
 pub mod provider;
 pub mod secrets;
@@ -169,6 +170,9 @@ pub fn run() {
             commands::secrets::set_api_key,
             commands::secrets::delete_api_key,
             commands::secrets::test_api_key,
+            commands::secrets::auth_options,
+            commands::secrets::oauth_begin_login,
+            commands::secrets::set_auth_mode,
             // settings & models
             commands::settings::get_settings,
             commands::settings::set_setting,
