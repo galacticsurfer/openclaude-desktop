@@ -117,7 +117,11 @@ export interface ModelInfo {
 
 export interface ModelListResult {
   models: ModelInfo[];
-  /** True when served from cache or the built-in fallback list. */
+  /** The model the CLI reports as currently in use, if it said. */
+  current: string | null;
+  /** The effort the CLI reports as currently applied. */
+  effort: string | null;
+  /** True only when the CLI could not be asked and a fallback was used. */
   stale: boolean;
 }
 

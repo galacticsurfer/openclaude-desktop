@@ -17,6 +17,9 @@ pub struct StreamHandle {
 pub struct ModelCache {
     pub fetched_at: Option<Instant>,
     pub models: Vec<ModelInfo>,
+    /// What the CLI reports as the model and effort currently in use.
+    pub current: Option<String>,
+    pub effort: Option<String>,
 }
 
 pub struct AppState {

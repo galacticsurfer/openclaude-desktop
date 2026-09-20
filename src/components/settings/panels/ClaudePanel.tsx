@@ -10,7 +10,8 @@ import { openExternal } from '@/lib/external';
 import type { ClaudeCodeStatus, EffortLevel } from '@/types';
 
 export function ClaudePanel() {
-  const { settings, set, models } = useSettingsStore();
+  const { settings, set, models, modelsStale, currentModel, cliEffort, refreshModels } =
+    useSettingsStore();
   const slashCommands = settings?.['claude.slashCommands'] ?? [];
   const [status, setStatus] = useState<ClaudeCodeStatus | null>(null);
   const [checking, setChecking] = useState(false);
@@ -86,10 +87,23 @@ export function ClaudePanel() {
         </div>
       </Group>
 
-      <Group title="Model">
+      <Group
+        title="Model"
+        description={
+          currentModel
+            ? `Claude Code reports it is currently using ${currentModel}${
+                cliEffort ? ` at ${cliEffort} effort` : ''
+              }.`
+            : 'Asked of Claude Code directly, so the list matches your installation.'
+        }
+      >
         <Row
           label="Default model"
-          description="Used for new conversations. These are Claude Code's own aliases, so each one follows whatever model is current."
+          description={
+            modelsStale
+              ? 'Claude Code could not be asked, so this is a fallback list.'
+              : `${models.length} aliases available. Each follows whatever model is current.`
+          }
           control={
             <Select
               value={settings['claude.defaultModel'] ?? ''}
@@ -102,6 +116,19 @@ export function ClaudePanel() {
                 </option>
               ))}
             </Select>
+          }
+        />
+        <Row
+          label="Refresh"
+          description="Re-asks Claude Code which models it accepts. Costs nothing."
+          control={
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void refreshModels(true)}
+            >
+              <RefreshCw size={13} /> Refresh models
+            </Button>
           }
         />
       </Group>
@@ -118,7 +145,9 @@ export function ClaudePanel() {
               }
               aria-label="Effort"
             >
-              <option value="">Claude Code default</option>
+              <option value="">
+                {cliEffort ? `Claude Code default (${cliEffort})` : 'Claude Code default'}
+              </option>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>

@@ -42,10 +42,9 @@ pub fn create_conversation(
         // conversation before the model list has loaded.
         input.model = settings_repo::get_or(&conn, sk::DEFAULT_MODEL, String::new());
         if input.model.is_empty() {
-            input.model = crate::provider::claude_code::models()
-                .first()
-                .map(|m| m.id.clone())
-                .unwrap_or_else(|| "sonnet".to_string());
+            // The dropdown discovers the real list asynchronously; this is
+            // only the seed used before the user has picked anything.
+            input.model = "sonnet".to_string();
         }
     }
     repo::create(&conn, input)

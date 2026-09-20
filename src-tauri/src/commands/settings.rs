@@ -61,16 +61,43 @@ pub fn reset_setting(state: State<'_, Arc<AppState>>, key: String) -> Result<()>
 /// Served from a short-lived cache. When the API cannot be reached we return
 /// the built-in list flagged `fromFallback`, so the user can still pick a
 /// model offline and the UI can say the list may be incomplete.
-/// Models the Claude Code CLI accepts.
+/// Models the Claude Code CLI accepts, asked of the CLI itself.
 ///
-/// Aliases rather than pinned ids: the CLI resolves `opus`/`sonnet`/`haiku`
-/// to whatever is current, so this cannot go stale the way a hardcoded list
-/// would. No network call and no credential is involved.
+/// `/model` is answered locally and costs nothing, so this is a real query
+/// rather than a hardcoded list — which aliases exist changes with the CLI
+/// version. Cached for the process because it only changes on upgrade.
 #[tauri::command]
-pub async fn list_models(_refresh: Option<bool>) -> Result<ModelListResult> {
+pub async fn list_models(app: tauri::AppHandle, refresh: Option<bool>) -> Result<ModelListResult> {
+    use tauri::Manager;
+    let state = app.state::<Arc<AppState>>().inner().clone();
+
+    if !refresh.unwrap_or(false) {
+        let cache = state.models.lock().unwrap();
+        if !cache.models.is_empty() {
+            return Ok(ModelListResult {
+                models: cache.models.clone(),
+                current: cache.current.clone(),
+                effort: cache.effort.clone(),
+                stale: false,
+            });
+        }
+    }
+
+    let (models, catalog) = crate::provider::claude_code::models().await;
+    let discovered = !catalog.available.is_empty();
+    {
+        let mut cache = state.models.lock().unwrap();
+        cache.models = models.clone();
+        cache.current = catalog.current.clone();
+        cache.effort = catalog.effort.clone();
+    }
+
     Ok(ModelListResult {
-        models: crate::provider::claude_code::models(),
-        stale: false,
+        models,
+        current: catalog.current,
+        effort: catalog.effort,
+        // Only "stale" when the CLI could not be asked and we fell back.
+        stale: !discovered,
     })
 }
 
@@ -78,6 +105,10 @@ pub async fn list_models(_refresh: Option<bool>) -> Result<ModelListResult> {
 #[serde(rename_all = "camelCase")]
 pub struct ModelListResult {
     pub models: Vec<ModelInfo>,
+    /// The model the CLI reports as currently in use, if it said.
+    pub current: Option<String>,
+    /// The effort the CLI reports as currently applied.
+    pub effort: Option<String>,
     /// True when this list came from cache or the fallback rather than a
     /// fresh call, so the UI can label it honestly.
     pub stale: bool,

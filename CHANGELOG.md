@@ -40,9 +40,13 @@ separate bill, and nothing to paste or store.
   arrived empty.
 - **Reasoning effort** (`--effort`, low through max), validated so a stale
   value cannot make every request fail.
-- **Model selection** accepts a full model name as well as Claude Code's
-  aliases, and the concrete model each alias resolved to is recorded per
-  message.
+- **The model list is asked of Claude Code**, by running `/model` — which is
+  answered locally and costs nothing. Settings shows what the CLI reports it
+  is currently using and at what effort; the dropdown offers the aliases that
+  installation actually accepts (10 here, against 3 hardcoded before),
+  including `[1m]` long-context variants and `opusplan`. A full model name
+  can still be typed, and the concrete model each alias resolved to is
+  recorded per message.
 
 ### Fixed
 

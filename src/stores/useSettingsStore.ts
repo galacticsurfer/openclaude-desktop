@@ -6,6 +6,9 @@ interface SettingsState {
   settings: Settings | null;
   models: ModelInfo[];
   modelsStale: boolean;
+  /** What the CLI says it is currently using. */
+  currentModel: string | null;
+  cliEffort: string | null;
   claudeCode: ClaudeCodeStatus | null;
   loading: boolean;
 
@@ -23,6 +26,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: null,
   models: [],
   modelsStale: false,
+  currentModel: null,
+  cliEffort: null,
   claudeCode: null,
   loading: true,
 
@@ -77,7 +82,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async refreshModels(force = false) {
     const result = await api.listModels(force);
-    set({ models: result.models, modelsStale: result.stale });
+    set({
+      models: result.models,
+      modelsStale: result.stale,
+      currentModel: result.current,
+      cliEffort: result.effort,
+    });
 
     // Seed the default model the first time we learn what is available.
     const settings = get().settings;

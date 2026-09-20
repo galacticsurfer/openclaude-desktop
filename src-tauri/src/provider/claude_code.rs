@@ -47,19 +47,113 @@ const DISALLOWED_TOOLS: &[&str] = &[
     "TodoWrite",
 ];
 
-/// Model aliases the CLI accepts. Ids are what we store; labels are display
-/// only. Kept short deliberately — the CLI resolves an alias to whatever the
-/// current model behind it is, so this does not go stale the way a pinned
-/// list would.
 /// Accepted `--effort` values. Validated rather than passed through, so a
 /// stale setting cannot make every request fail.
 pub const EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
 
-const MODEL_ALIASES: &[(&str, &str)] = &[
-    ("opus", "Claude Opus"),
-    ("sonnet", "Claude Sonnet"),
-    ("haiku", "Claude Haiku"),
-];
+/// Fallback aliases, used only when the CLI cannot be asked (not installed,
+/// or the probe failed). The real list is discovered at runtime — see
+/// [`discover_models`] — because which aliases exist changes with the CLI
+/// version, and a pinned list would quietly go stale.
+const FALLBACK_ALIASES: &[&str] = &["opus", "sonnet", "haiku"];
+
+/// What `/model` reports.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCatalog {
+    /// Human name of the model in use, e.g. "Opus 5 (1M context)".
+    pub current: Option<String>,
+    /// Effort level the CLI is currently applying.
+    pub effort: Option<String>,
+    /// Aliases that can be passed to `--model`.
+    pub available: Vec<String>,
+}
+
+/// Parse the output of `/model`, which looks like:
+///
+/// ```text
+/// Current model: `Opus 5 (1M context)` (effort: high)
+/// Usage: /model <name>. Available: sonnet, opus, haiku, …, or a full model ID.
+/// ```
+///
+/// Written defensively: this is human-facing text that can change between
+/// CLI versions, so anything unrecognised yields an empty field rather than
+/// a wrong one.
+pub fn parse_model_output(text: &str) -> ModelCatalog {
+    let mut catalog = ModelCatalog::default();
+
+    for line in text.lines() {
+        let line = line.trim();
+
+        if let Some(rest) = line.strip_prefix("Current model:") {
+            // The name is backtick-quoted; effort follows in parentheses.
+            if let (Some(a), Some(b)) = (rest.find('`'), rest.rfind('`')) {
+                if b > a {
+                    catalog.current = Some(rest[a + 1..b].trim().to_string());
+                }
+            }
+            if let Some(i) = rest.find("(effort:") {
+                let after = &rest[i + "(effort:".len()..];
+                if let Some(end) = after.find(')') {
+                    let effort = after[..end].trim().to_string();
+                    if !effort.is_empty() {
+                        catalog.effort = Some(effort);
+                    }
+                }
+            }
+        }
+
+        if let Some(i) = line.find("Available:") {
+            catalog.available = line[i + "Available:".len()..]
+                .split(',')
+                .map(|e| e.trim().trim_end_matches('.').trim())
+                // Drops the trailing prose ("or a full model ID") and
+                // anything else that is clearly not an alias.
+                .filter(|e| {
+                    !e.is_empty()
+                        && !e.contains(' ')
+                        && e.chars()
+                            .all(|c| c.is_ascii_alphanumeric() || "-_.[]".contains(c))
+                })
+                .map(str::to_owned)
+                .collect();
+        }
+    }
+
+    catalog
+}
+
+/// Ask the CLI which models it accepts.
+///
+/// `/model` is answered locally — a recorded run reports zero input and
+/// output tokens — so this is free and does not touch the user's quota.
+/// Session persistence is off, so the probe leaves nothing resumable behind.
+pub async fn discover_models() -> Option<ModelCatalog> {
+    let out = Command::new(CLAUDE_BIN)
+        .arg("--print")
+        .arg("--output-format")
+        .arg("text")
+        .arg("--no-session-persistence")
+        .arg("--disallowed-tools")
+        .arg(DISALLOWED_TOOLS.join(" "))
+        .arg("--permission-mode")
+        .arg("dontAsk")
+        .arg("/model")
+        .current_dir(std::env::temp_dir())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .output()
+        .await
+        .ok()?;
+
+    if !out.status.success() {
+        return None;
+    }
+    let catalog = parse_model_output(&String::from_utf8_lossy(&out.stdout));
+    (!catalog.available.is_empty()).then_some(catalog)
+}
 
 pub struct ClaudeCodeProvider {
     /// Where the CLI process runs. An empty scratch dir unless a project
@@ -435,7 +529,7 @@ impl AIProvider for ClaudeCodeProvider {
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>> {
-        Ok(models())
+        Ok(models().await.0)
     }
 
     async fn verify_credentials(&self) -> Result<()> {
@@ -534,16 +628,56 @@ fn classify(detail: Option<&str>) -> &'static str {
     }
 }
 
-pub fn models() -> Vec<ModelInfo> {
-    MODEL_ALIASES
+/// The aliases to offer, discovered from the CLI where possible.
+pub async fn models() -> (Vec<ModelInfo>, ModelCatalog) {
+    match discover_models().await {
+        Some(catalog) => {
+            let models = catalog
+                .available
+                .iter()
+                .map(|id| ModelInfo {
+                    id: id.clone(),
+                    display_name: label_for(id),
+                    created_at: None,
+                    from_fallback: false,
+                })
+                .collect();
+            (models, catalog)
+        }
+        None => (fallback_models(), ModelCatalog::default()),
+    }
+}
+
+pub fn fallback_models() -> Vec<ModelInfo> {
+    FALLBACK_ALIASES
         .iter()
-        .map(|(id, label)| ModelInfo {
+        .map(|id| ModelInfo {
             id: (*id).to_string(),
-            display_name: (*label).to_string(),
+            display_name: label_for(id),
             created_at: None,
-            from_fallback: false,
+            from_fallback: true,
         })
         .collect()
+}
+
+/// Turn an alias into something readable, without inventing detail: an
+/// unrecognised alias is shown exactly as the CLI named it.
+fn label_for(alias: &str) -> String {
+    let (base, suffix) = match alias.strip_suffix("[1m]") {
+        Some(b) => (b, " (1M context)"),
+        None => (alias, ""),
+    };
+    let pretty = match base {
+        "opus" => "Opus",
+        "sonnet" => "Sonnet",
+        "haiku" => "Haiku",
+        "fable" => "Fable",
+        "best" => "Best available",
+        "default" => "Default",
+        "opusplan" => "Opus (plan mode)",
+        other => return format!("{other}{suffix}"),
+    };
+    format!("{pretty}{suffix}")
 }
 
 /// Is the CLI installed and runnable?
@@ -753,6 +887,47 @@ mod tests {
         let mut streamed = true;
         handle_line(result, &mut pending, &mut err, &mut streamed);
         assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn parses_the_model_command_output() {
+        let out = "Current model: `Opus 5 (1M context)` (effort: high)\n\
+                   Usage: /model <name>. Available: sonnet, opus, haiku, fable, best, \
+                   sonnet[1m], opus[1m], opusplan, default, or a full model ID.";
+        let c = parse_model_output(out);
+        assert_eq!(c.current.as_deref(), Some("Opus 5 (1M context)"));
+        assert_eq!(c.effort.as_deref(), Some("high"));
+        // The trailing prose is not an alias and must not become an option.
+        assert!(!c.available.iter().any(|a| a.contains(' ')));
+        assert!(c.available.contains(&"sonnet".to_string()));
+        assert!(c.available.contains(&"opus[1m]".to_string()));
+        assert!(c.available.contains(&"opusplan".to_string()));
+        assert_eq!(c.available.len(), 9);
+    }
+
+    #[test]
+    fn model_output_that_changed_shape_yields_empty_rather_than_wrong() {
+        // Human-facing text can change between CLI versions; a bad parse
+        // must not invent a model list.
+        let c = parse_model_output("something entirely different");
+        assert!(c.current.is_none());
+        assert!(c.effort.is_none());
+        assert!(c.available.is_empty());
+
+        // Current model present but no list, and vice versa.
+        let c = parse_model_output("Current model: `Sonnet 5` (effort: low)");
+        assert_eq!(c.current.as_deref(), Some("Sonnet 5"));
+        assert!(c.available.is_empty());
+    }
+
+    #[test]
+    fn aliases_get_readable_labels_without_inventing_detail() {
+        assert_eq!(label_for("opus"), "Opus");
+        assert_eq!(label_for("sonnet[1m]"), "Sonnet (1M context)");
+        assert_eq!(label_for("opusplan"), "Opus (plan mode)");
+        // An alias added by a newer CLI is shown exactly as given.
+        assert_eq!(label_for("claude-fable-9"), "claude-fable-9");
+        assert_eq!(label_for("mystery[1m]"), "mystery (1M context)");
     }
 
     #[test]

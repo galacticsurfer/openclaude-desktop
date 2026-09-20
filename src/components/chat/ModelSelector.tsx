@@ -18,7 +18,7 @@ interface Props {
  * is always offered, so an old conversation never loses its setting.
  */
 export function ModelSelector({ value, onChange, disabled }: Props) {
-  const { models, modelsStale, refreshModels } = useSettingsStore();
+  const { models, modelsStale, currentModel, refreshModels } = useSettingsStore();
 
   useEffect(() => {
     if (models.length === 0) void refreshModels();
@@ -50,6 +50,11 @@ export function ModelSelector({ value, onChange, disabled }: Props) {
         }}
         disabled={disabled}
         aria-label="Model"
+        title={
+          currentModel
+            ? `Claude Code is currently using ${currentModel}`
+            : 'Model for this conversation'
+        }
         className="h-7 min-w-[170px] max-w-[240px] border-transparent bg-transparent pl-2 pr-7 text-[13px] text-ink-soft hover:bg-sunken"
       >
         {options.map((m) => (
@@ -60,8 +65,11 @@ export function ModelSelector({ value, onChange, disabled }: Props) {
         <option value={CUSTOM}>Other model…</option>
       </Select>
       {modelsStale && (
-        <span title="Model list may be incomplete." className="text-warn">
-          <AlertCircle size={13} aria-label="Model list may be incomplete" />
+        <span
+          title="Claude Code could not be asked which models it accepts, so this is a fallback list."
+          className="text-warn"
+        >
+          <AlertCircle size={13} aria-label="Model list is a fallback" />
         </span>
       )}
     </div>
