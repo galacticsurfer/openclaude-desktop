@@ -243,6 +243,8 @@ export interface Settings {
   'claude.effort': EffortLevel | null;
   /** Discovered from a session, not configured. Used for composer completion. */
   'claude.slashCommands': string[];
+  /** Tools a session offered that this build does not disable. Should be []. */
+  'claude.unexpectedTools': string[];
 
   'appearance.theme': ThemePreference;
   'appearance.fontSize': number;

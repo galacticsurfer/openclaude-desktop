@@ -542,7 +542,23 @@ async fn run_stream(
                 session_id,
                 model,
                 slash_commands,
+                tools,
             } => {
+                // The lockdown is a deny list, so a CLI upgrade could add a
+                // tool it has never heard of. Say so loudly rather than
+                // letting a chat window quietly gain file access.
+                let unexpected = crate::provider::claude_code::unexpected_tools(&tools);
+                if !unexpected.is_empty() {
+                    tracing::warn!(
+                        tools = ?unexpected,
+                        "Claude Code offered tools this build does not disable"
+                    );
+                    let conn = db.conn();
+                    let _ = repo::settings::set(&conn, sk::UNEXPECTED_TOOLS, &unexpected);
+                } else {
+                    let conn = db.conn();
+                    let _ = repo::settings::set(&conn, sk::UNEXPECTED_TOOLS, &Vec::<String>::new());
+                }
                 // Record the id the CLI actually adopted: a forked session
                 // gets a fresh one rather than the id we asked for.
                 if !session_id.is_empty() {

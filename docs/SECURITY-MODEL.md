@@ -43,11 +43,29 @@ what this app wants.
 
 ### Tool access is off
 
-A chat window is not a coding agent. Every built-in tool is disabled by name
-(`Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, …)
-rather than relying on `--restricted`, which only removes the command-running
-tools and would leave file access intact. `--permission-mode dontAsk` is set
-too: there is no TTY, so a permission prompt would hang forever.
+A chat window is not a coding agent, so a conversation runs with **zero**
+tools — verified by asking the CLI: a session started with these flags
+reports an empty tool list.
+
+Getting there took two corrections worth recording, because both are easy to
+repeat:
+
+* **`--restricted` is not a lockdown.** It removes the command-running tools
+  and WebFetch, and leaves `Read`, `Write`, `Edit`, `Glob` and `Grep` fully
+  available.
+* **A short deny list is not either.** An earlier version named the obvious
+  tools and silently left nineteen others live — including `Read`, `Write`,
+  `SendMessage` and `CronDelete` — plus every tool from every configured MCP
+  server. On the development machine that included one that can delete
+  documents. `--strict-mcp-config` is what removes those.
+
+Because a deny list can only ever describe the tools that existed when it was
+written, the app re-checks at runtime: every session reports its tool list,
+anything unrecognised is logged and surfaced in Settings → Claude as a
+warning. A CLI upgrade that adds a tool cannot quietly reopen the hole.
+
+`--permission-mode dontAsk` is set too: there is no TTY, so a permission
+prompt would hang forever.
 
 The CLI runs in an empty directory under `~/.local/share/openclaude/sessions`
 unless the conversation's project names a working folder — otherwise a stray

@@ -12,6 +12,9 @@ pub const EFFORT: &str = "claude.effort";
 /// session rather than configured, and cached so the composer can complete
 /// them before the next session starts.
 pub const SLASH_COMMANDS: &str = "claude.slashCommands";
+/// Tools a session reported that this build does not disable. Expected to
+/// be empty; non-empty means the lockdown needs updating for a newer CLI.
+pub const UNEXPECTED_TOOLS: &str = "claude.unexpectedTools";
 
 pub const THEME: &str = "appearance.theme";
 pub const FONT_SIZE: &str = "appearance.fontSize";
@@ -44,6 +47,7 @@ pub fn defaults() -> Value {
         TITLE_MODEL: Value::Null,
         EFFORT: Value::Null,
         SLASH_COMMANDS: json!([]),
+        UNEXPECTED_TOOLS: json!([]),
 
         THEME: "system",
         FONT_SIZE: 15,

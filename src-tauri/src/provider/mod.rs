@@ -59,6 +59,9 @@ pub enum StreamEvent {
         session_id: String,
         model: String,
         slash_commands: Vec<String>,
+        /// Tools the session reports as available. Expected to be empty for
+        /// a chat conversation; anything here means the lockdown has a hole.
+        tools: Vec<String>,
     },
     /// Stream accepted; carries the provider's message id and prompt usage.
     Started {

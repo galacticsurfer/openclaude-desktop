@@ -30,10 +30,21 @@ use tokio::process::Command;
 /// Resolved from `PATH` by the OS; never run through a shell.
 pub const CLAUDE_BIN: &str = "claude";
 
-/// Built-in tools are all disabled: this is a conversation, not an agent.
-/// Named explicitly rather than relying on `--restricted`, which only removes
-/// the command-running tools and still leaves file access.
+/// Tools denied for a chat conversation.
+///
+/// This is the complete set the CLI exposes, verified by asking it: with
+/// this list plus `--strict-mcp-config`, a session reports **zero** tools.
+///
+/// It has to be exhaustive, and that is the weakness of a deny list — an
+/// earlier version named only the obvious ones and left nineteen others
+/// live, including `Read`, `Write`, `Edit`, `Grep`, `SendMessage` and
+/// `CronDelete`, plus every MCP tool. `--restricted` is not enough either:
+/// it removes only the command-running tools and WebFetch, and leaves file
+/// access intact. Because a CLI upgrade can add tools this list has never
+/// heard of, [`unexpected_tools`] re-checks at runtime and the app warns
+/// rather than trusting this to stay complete.
 const DISALLOWED_TOOLS: &[&str] = &[
+    // File and shell access.
     "Bash",
     "Read",
     "Write",
@@ -41,11 +52,45 @@ const DISALLOWED_TOOLS: &[&str] = &[
     "NotebookEdit",
     "Glob",
     "Grep",
+    // Network.
     "WebFetch",
     "WebSearch",
+    // Delegation and background work.
     "Task",
+    "TaskOutput",
+    "TaskStop",
     "TodoWrite",
+    "Workflow",
+    "ListAgents",
+    "Skill",
+    "ToolSearch",
+    // Scheduling, messaging and anything else with an outside effect.
+    "CronCreate",
+    "CronDelete",
+    "CronList",
+    "ScheduleWakeup",
+    "SendMessage",
+    "PushNotification",
+    "RemoteTrigger",
+    "Monitor",
+    "LSP",
+    "DesignSync",
+    "ReportFindings",
+    "EnterWorktree",
+    "ExitWorktree",
 ];
+
+/// Tools a session reported that we did not expect to be available.
+///
+/// A chat window claims it cannot touch your files; this is what keeps that
+/// claim honest when the CLI gains a tool after this was written.
+pub fn unexpected_tools(reported: &[String]) -> Vec<String> {
+    reported
+        .iter()
+        .filter(|t| !DISALLOWED_TOOLS.contains(&t.as_str()))
+        .cloned()
+        .collect()
+}
 
 /// Accepted `--effort` values. Validated rather than passed through, so a
 /// stale setting cannot make every request fail.
@@ -136,6 +181,7 @@ pub async fn discover_models() -> Option<ModelCatalog> {
         .arg("--no-session-persistence")
         .arg("--disallowed-tools")
         .arg(DISALLOWED_TOOLS.join(" "))
+        .arg("--strict-mcp-config")
         .arg("--permission-mode")
         .arg("dontAsk")
         .arg("/model")
@@ -203,6 +249,9 @@ impl ClaudeCodeProvider {
             .arg("--verbose")
             .arg("--disallowed-tools")
             .arg(DISALLOWED_TOOLS.join(" "))
+            // Without this, every configured MCP server's tools stay live —
+            // for this user that included one that can delete documents.
+            .arg("--strict-mcp-config")
             // No TTY here, so a permission prompt would hang forever. With
             // every tool disabled there is nothing left to ask about.
             .arg("--permission-mode")
@@ -284,6 +333,7 @@ pub enum CliRecord {
         session_id: String,
         model: String,
         slash_commands: Vec<String>,
+        tools: Vec<String>,
     },
     /// A wrapped Anthropic stream event.
     Stream(StreamEvent),
@@ -334,7 +384,19 @@ pub fn parse_line(line: &str) -> CliRecord {
                 .unwrap_or_default();
             slash_commands.sort();
 
+            let tools: Vec<String> = v
+                .get("tools")
+                .and_then(|a| a.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str())
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
+
             CliRecord::Init {
+                tools,
                 session_id: v
                     .get("session_id")
                     .and_then(|s| s.as_str())
@@ -616,11 +678,13 @@ fn handle_line(
             session_id,
             model,
             slash_commands,
+            tools,
         } => {
             pending.push_back(StreamEvent::SessionReady {
                 session_id,
                 model,
                 slash_commands,
+                tools,
             });
         }
         CliRecord::Ignored => {}
@@ -832,6 +896,7 @@ mod tests {
                 session_id,
                 model,
                 slash_commands,
+                ..
             } => {
                 assert_eq!(session_id, "abc");
                 assert_eq!(model, "claude-opus-5");
@@ -850,6 +915,35 @@ mod tests {
             CliRecord::Init { slash_commands, .. } => assert!(slash_commands.is_empty()),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn the_lockdown_is_checked_against_what_the_session_reports() {
+        // Everything we deny is expected; anything else is a hole a CLI
+        // upgrade opened, and must be reported rather than ignored.
+        assert!(unexpected_tools(&[]).is_empty());
+        assert!(unexpected_tools(&["Bash".into(), "Read".into(), "Skill".into()]).is_empty());
+
+        let holes = unexpected_tools(&[
+            "Read".into(),
+            "SomeNewTool".into(),
+            "mcp__server__do_thing".into(),
+        ]);
+        assert_eq!(holes, vec!["SomeNewTool", "mcp__server__do_thing"]);
+    }
+
+    #[test]
+    fn mcp_servers_are_excluded_from_chat_sessions() {
+        // A configured MCP server would otherwise stay live — this user had
+        // one that can delete documents.
+        let p = ClaudeCodeProvider::new(PathBuf::from("/tmp"), SessionRef::New("s".into()));
+        let args: Vec<String> = p
+            .command(&req("hi"))
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(args.iter().any(|a| a == "--strict-mcp-config"));
     }
 
     #[test]

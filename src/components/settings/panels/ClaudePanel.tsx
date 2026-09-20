@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ExternalLink, RefreshCw, Terminal, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  ExternalLink,
+  RefreshCw,
+  Terminal,
+  TriangleAlert,
+  XCircle,
+} from 'lucide-react';
 import * as api from '@/services/api';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +20,7 @@ export function ClaudePanel() {
   const { settings, set, models, modelsStale, currentModel, cliEffort, refreshModels } =
     useSettingsStore();
   const slashCommands = settings?.['claude.slashCommands'] ?? [];
+  const unexpectedTools = settings?.['claude.unexpectedTools'] ?? [];
   const [status, setStatus] = useState<ClaudeCodeStatus | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -79,11 +87,28 @@ export function ClaudePanel() {
             </div>
           )}
 
-          <p className="mt-2.5 flex items-start gap-1.5 text-[12px] leading-snug text-ink-faint">
-            <Terminal size={12} className="mt-0.5 shrink-0" aria-hidden />
-            File and command tools are disabled for these conversations, so a reply cannot
-            read your files or run anything.
-          </p>
+          {unexpectedTools.length > 0 ? (
+            <div className="mt-2.5 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+                <TriangleAlert size={14} className="shrink-0 text-warn" aria-hidden />
+                Your Claude Code offers tools this build does not disable.
+              </p>
+              <p className="mt-1 text-[12.5px] leading-snug text-ink-soft">
+                A reply in this app could use them. This usually means Claude Code is newer
+                than OpenClaude — please report it.
+              </p>
+              <p className="mt-1.5 font-mono text-[11.5px] text-ink-faint">
+                {unexpectedTools.join(', ')}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2.5 flex items-start gap-1.5 text-[12px] leading-snug text-ink-faint">
+              <Terminal size={12} className="mt-0.5 shrink-0" aria-hidden />
+              File, command and MCP tools are all disabled for these conversations — a
+              session reports zero tools — so a reply cannot read your files, run anything,
+              or reach a connected service.
+            </p>
+          )}
         </div>
       </Group>
 
