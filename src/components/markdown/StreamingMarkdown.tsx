@@ -52,8 +52,11 @@ export function splitSettled(text: string): { settled: string; tail: string } {
 
 export const StreamingMarkdown = memo(function StreamingMarkdown({
   children,
+  caret = false,
 }: {
   children: string;
+  /** Draw the blinking cursor after the last character. */
+  caret?: boolean;
 }) {
   const { settled, tail } = useMemo(() => splitSettled(children), [children]);
 
@@ -61,9 +64,20 @@ export const StreamingMarkdown = memo(function StreamingMarkdown({
     <>
       {/* Memoised on `settled`, which changes only when a block completes. */}
       {settled !== '' && <Markdown live>{settled}</Markdown>}
-      {tail !== '' && (
-        // Plain text: cheap, and it only lasts until the block closes.
-        <div className="prose-oc whitespace-pre-wrap">{tail}</div>
+      {(tail !== '' || caret) && (
+        // Plain text: cheap, and it only lasts until the block closes. The
+        // caret lives in here rather than after the block, or it would wrap
+        // onto a line of its own instead of trailing the last character.
+        <div
+          className={
+            settled === ''
+              ? 'prose-oc whitespace-pre-wrap'
+              : 'prose-oc stream-tail whitespace-pre-wrap'
+          }
+        >
+          {tail}
+          {caret && <span className="stream-caret animate-caret" aria-hidden />}
+        </div>
       )}
     </>
   );

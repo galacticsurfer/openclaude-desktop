@@ -212,6 +212,11 @@
 .prose-oc h3 { font-size: 1.08em; }
 .prose-oc h4 { font-size: 1em; }
 .prose-oc > :first-child { margin-top: 0; }
+/* The growing tail of a streaming reply is a sibling of the settled blocks,
+   so `> * + *` cannot space it. Match that gap by hand, or the text shifts
+   down the moment the block completes and the two merge. */
+.stream-tail { margin-top: calc(0.85em * var(--density)); }
+
 .prose-oc > :last-child { margin-bottom: 0; }
 
 .prose-oc ul,

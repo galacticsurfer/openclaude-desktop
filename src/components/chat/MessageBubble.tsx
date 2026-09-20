@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { Message } from '@/types';
 import { Markdown } from '@/components/markdown/Markdown';
+import { useSmoothText } from '@/hooks/useSmoothText';
 import { StreamingMarkdown } from '@/components/markdown/StreamingMarkdown';
 import { IconButton } from '@/components/ui/IconButton';
 import { Button } from '@/components/ui/Button';
@@ -43,7 +44,9 @@ export const MessageBubble = memo(function MessageBubble({
   const [showDetails, setShowDetails] = useState(false);
 
   const streaming = stream !== null;
-  const text = streaming ? stream.text : m.content;
+  // Deltas arrive in ~25-character lumps; reveal them at frame rate so the
+  // reply flows instead of jumping. See useSmoothText.
+  const text = useSmoothText(streaming ? stream.text : m.content, streaming);
   const thinking = streaming ? stream.thinking : (m.thinking ?? '');
   const isUser = m.role === 'user';
 
@@ -124,7 +127,7 @@ export const MessageBubble = memo(function MessageBubble({
           // While streaming, parse only completed blocks; see
           // StreamingMarkdown for why the whole-string path is O(n²).
           streaming ? (
-            <StreamingMarkdown>{text}</StreamingMarkdown>
+            <StreamingMarkdown caret>{text}</StreamingMarkdown>
           ) : (
             <Markdown>{text}</Markdown>
           )
@@ -139,7 +142,6 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         ) : null}
 
-        {streaming && text.length > 0 && <span className="stream-caret animate-caret" aria-hidden />}
       </div>
 
       {m.status === 'interrupted' && !streaming && (
