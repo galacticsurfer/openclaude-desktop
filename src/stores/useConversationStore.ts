@@ -50,6 +50,8 @@ interface ConversationState {
   loadConversations: (scope?: ListScope, projectId?: string | null) => Promise<void>;
   loadProjects: () => Promise<void>;
   open: (id: string) => Promise<void>;
+  /** Show no conversation — the last tab was closed. */
+  clearCurrent: () => void;
   newConversation: (projectId?: string | null) => Promise<string>;
   send: (text: string) => Promise<void>;
   stop: () => Promise<void>;
@@ -134,6 +136,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   async open(id) {
+    // Opening a conversation is what puts it in a tab; the strip never
+    // decides on its own what is open.
+    useUIStore.getState().openInTab(id, get().currentId);
     set({ currentId: id, loadingMessages: true, pendingAttachments: [] });
     try {
       const [current, messages] = await Promise.all([
@@ -156,6 +161,10 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       set({ loadingMessages: false });
       useUIStore.getState().toast('error', AppError.from(err).message);
     }
+  },
+
+  clearCurrent() {
+    set({ currentId: null, current: null, messages: [] });
   },
 
   async newConversation(projectId) {

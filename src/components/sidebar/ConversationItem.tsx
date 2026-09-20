@@ -1,8 +1,7 @@
 import { memo } from 'react';
 import {
   Archive, ArchiveRestore, Copy, FolderInput, MoreHorizontal, Pencil, Pin, PinOff,
-  RotateCcw, Trash2, Download,
-} from 'lucide-react';
+  RotateCcw, Trash2, Download, Columns2 } from 'lucide-react';
 import type { ConversationSummary } from '@/types';
 import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -18,7 +17,7 @@ interface Props {
 
 export type ConversationAction =
   | 'rename' | 'pin' | 'archive' | 'trash' | 'restore'
-  | 'duplicate' | 'export' | 'move' | 'deleteForever';
+  | 'duplicate' | 'export' | 'move' | 'deleteForever' | 'newTab';
 
 export const ConversationItem = memo(function ConversationItem({
   conversation: c,
@@ -41,6 +40,11 @@ export const ConversationItem = memo(function ConversationItem({
         },
       ]
     : [
+        {
+          label: 'Open in new tab',
+          icon: <Columns2 size={14} />,
+          onSelect: () => onAction('newTab'),
+        },
         { label: 'Rename', icon: <Pencil size={14} />, onSelect: () => onAction('rename') },
         {
           label: c.pinned ? 'Unpin' : 'Pin to top',
@@ -68,7 +72,13 @@ export const ConversationItem = memo(function ConversationItem({
     >
       <button
         type="button"
-        onClick={onOpen}
+        onClick={(e) => (e.ctrlKey || e.metaKey ? onAction('newTab') : onOpen())}
+        onAuxClick={(e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            onAction('newTab');
+          }
+        }}
         aria-current={active ? 'page' : undefined}
         aria-describedby={streaming ? `${c.id}-working` : undefined}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-2.5 pr-1 text-left"

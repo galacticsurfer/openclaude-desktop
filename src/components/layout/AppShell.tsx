@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { Sidebar } from './Sidebar';
 import { ChatView } from '@/components/chat/ChatView';
+import { TabStrip } from './TabStrip';
 import { SearchPalette } from '@/components/search/SearchPalette';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
@@ -98,6 +99,18 @@ export function AppShell() {
         allowInInput: true,
         run: () => openOverlay({ kind: 'prompts' }),
       },
+      {
+        key: 'w',
+        ctrl: true,
+        allowInInput: true,
+        run: () => {
+          const { currentId, open, clearCurrent } = useConversationStore.getState();
+          if (currentId === null) return;
+          const next = useUIStore.getState().closeTab(currentId, currentId);
+          if (next) void open(next);
+          else clearCurrent();
+        },
+      },
       { key: 'b', ctrl: true, allowInInput: true, run: toggleSidebar },
       { key: 'n', ctrl: true, shift: true, allowInInput: true, run: () => openOverlay({ kind: 'newProject' }) },
       {
@@ -158,8 +171,11 @@ export function AppShell() {
         <Sidebar />
       </div>
 
-      <main id="main" className="min-w-0 flex-1">
-        <ChatView />
+      <main id="main" className="flex min-w-0 flex-1 flex-col">
+        <TabStrip />
+        <div className="min-h-0 flex-1">
+          <ChatView />
+        </div>
       </main>
 
       {overlay.kind === 'search' && <SearchPalette />}

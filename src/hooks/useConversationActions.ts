@@ -20,6 +20,12 @@ export function useConversationActions() {
 
       try {
         switch (action) {
+          case 'newTab': {
+            const { currentId, open } = useConversationStore.getState();
+            useUIStore.getState().openInNewTab(c.id, currentId);
+            await open(c.id);
+            break;
+          }
           case 'rename': {
             const title = window.prompt('Rename conversation', c.title);
             if (title === null || title.trim() === '' || title === c.title) return;

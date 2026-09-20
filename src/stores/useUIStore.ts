@@ -42,6 +42,22 @@ interface UIState {
   setSidebarCollapsed: (v: boolean) => void;
   openOverlay: (o: Overlay) => void;
   closeOverlay: () => void;
+
+  /**
+   * Conversation ids with an open tab, in strip order.
+   *
+   * The *active* tab is not stored here — that is the conversation store's
+   * `currentId`, and duplicating it would let the two disagree. Tabs are
+   * deliberately session-only: reopening yesterday's tab strip is more
+   * surprising than useful.
+   */
+  tabs: string[];
+  /** Show `id` in the active tab, or focus the tab already showing it. */
+  openInTab: (id: string, activeId: string | null) => void;
+  /** Add a tab next to the active one without disturbing it. */
+  openInNewTab: (id: string, activeId: string | null) => void;
+  /** Close a tab; returns the id to show next, or null if none is left. */
+  closeTab: (id: string, activeId: string | null) => string | null;
   /**
    * Text an overlay wants dropped into the composer.
    *
@@ -75,6 +91,41 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openOverlay: (overlay) => set({ overlay }),
   closeOverlay: () => set({ overlay: { kind: 'none' } }),
+
+  tabs: [],
+
+  openInTab: (id, activeId) =>
+    set((s) => {
+      if (s.tabs.includes(id)) return s;
+      const at = activeId === null ? -1 : s.tabs.indexOf(activeId);
+      // Replace what the active tab was showing, like following a link in
+      // the same tab; with no active tab there is nothing to replace.
+      if (at === -1) return { tabs: [...s.tabs, id] };
+      const tabs = [...s.tabs];
+      tabs[at] = id;
+      return { tabs };
+    }),
+
+  openInNewTab: (id, activeId) =>
+    set((s) => {
+      if (s.tabs.includes(id)) return s;
+      const at = activeId === null ? -1 : s.tabs.indexOf(activeId);
+      const tabs = [...s.tabs];
+      tabs.splice(at === -1 ? tabs.length : at + 1, 0, id);
+      return { tabs };
+    }),
+
+  closeTab: (id, activeId) => {
+    const tabs = get().tabs;
+    const at = tabs.indexOf(id);
+    if (at === -1) return activeId;
+    const next = tabs.filter((t) => t !== id);
+    set({ tabs: next });
+    // Closing an inactive tab must not move the user.
+    if (id !== activeId) return activeId;
+    // Otherwise fall to the tab on the right, or the one on the left.
+    return next[at] ?? next[at - 1] ?? null;
+  },
 
   composerInsert: null,
   insertIntoComposer: (text) => set({ composerInsert: text }),
