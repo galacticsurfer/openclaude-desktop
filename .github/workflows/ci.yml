@@ -79,9 +79,15 @@ jobs:
         with:
           node-version: 20
       - run: npm audit --audit-level=high || true
-      - uses: rustsec/audit-check@v2
+      # Run cargo-audit directly rather than via rustsec/audit-check, which
+      # failed with "Unexpected end of JSON input" — it parses cargo-audit's
+      # JSON, and gets nothing back when the advisory fetch or the install
+      # goes wrong. A prebuilt binary plus a plain invocation has no such
+      # failure mode, and prints output we can actually read.
+      - uses: taiki-e/install-action@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tool: cargo-audit
+      - run: cargo audit --file src-tauri/Cargo.lock
 
   bundle:
     name: Bundle (.deb + AppImage)
