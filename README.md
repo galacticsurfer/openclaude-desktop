@@ -181,14 +181,6 @@ Standard XDG locations, so backups and dotfile managers just work:
 None of these holds a credential: the app has none. Requests run through the
 Claude Code CLI under the login you already gave it.
 
-## Terminal
-
-`Ctrl+\`` opens a shell inside the window — your login shell, in the
-project's working folder when there is one. It is yours, not Claude's:
-nothing typed or printed there is visible to the conversation, and replies
-still run with every tool disabled. Copy and paste is the only bridge, on
-purpose.
-
 ## Privacy and security
 
 - **There are no credentials to protect**, because the app holds none. It

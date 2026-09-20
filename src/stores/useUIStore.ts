@@ -60,11 +60,6 @@ interface UIState {
   openArtifact: (a: { title: string; code: string; language?: string }) => void;
   closeArtifact: () => void;
 
-  /** The embedded shell panel. Closing it kills the shell. */
-  terminalOpen: boolean;
-  toggleTerminal: () => void;
-  closeTerminal: () => void;
-
   tabs: string[];
   /** Show `id` in the active tab, or focus the tab already showing it. */
   openInTab: (id: string, activeId: string | null) => void;
@@ -109,10 +104,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   artifact: null,
   openArtifact: (artifact) => set({ artifact }),
   closeArtifact: () => set({ artifact: null }),
-
-  terminalOpen: false,
-  toggleTerminal: () => set((s) => ({ terminalOpen: !s.terminalOpen })),
-  closeTerminal: () => set({ terminalOpen: false }),
 
   tabs: [],
 

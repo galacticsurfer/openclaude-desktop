@@ -63,34 +63,6 @@ These are documented properties, not bugs. They are covered in
   from your distribution. Report those to your distribution or to WebKit.
 - Findings from automated scanners without a demonstrated impact.
 
-## The embedded terminal
-
-The app ships a terminal (Ctrl+`). It runs your login shell, with your
-environment and your permissions — the same authority you already have in
-any terminal emulator.
-
-**Claude cannot reach it.** This is structural, not a policy:
-
-- No IPC command returns shell output to anything but the terminal widget.
-- Nothing in the provider or chat path can reach a shell session.
-- Model replies still run with `--tools ""`, so a reply cannot execute
-  anything regardless of whether a terminal is open.
-
-Getting something from the terminal into a conversation means selecting it
-and copying it, deliberately. That boundary is the entire reason a built-in
-shell is acceptable in an app that otherwise refuses to let a model touch
-the machine: the authority here is yours, exercised by typing, and a model
-deciding to run a command is a categorically different thing.
-
-Two honest consequences:
-
-- The shell inherits your environment, including any secrets in it. That is
-  what a terminal is for, and scrubbing it would break normal use — but it
-  means the app's "holds no credentials" claim describes the app, not what
-  you choose to run inside it.
-- Closing the panel kills the child process, and so does quitting. A hidden
-  terminal is never left running.
-
 ## Security practices in this project
 
 - The app holds no credentials at all. There is no API key to leak: every
