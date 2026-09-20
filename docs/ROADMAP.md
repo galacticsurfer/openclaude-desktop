@@ -5,15 +5,15 @@
 | Item | Status |
 | --- | --- |
 | Tauri 2 + React + TypeScript on Ubuntu | ✅ |
-| Anthropic API authentication | ✅ |
-| API key in the system keyring, never on disk | ✅ |
+| Claude Code as the backend — no API key, no separate billing | ✅ |
+| No credentials held at all; every tool disabled | ✅ |
 | New conversations, streaming replies | ✅ |
 | Markdown + syntax highlighting (48 languages, lazy) | ✅ |
 | Conversation persistence in SQLite | ✅ |
 | Automatic conversation titles | ✅ |
 | Conversation history, rename, archive, trash | ✅ |
 | Full-text search (FTS5, Ctrl+K) | ✅ |
-| Model selector from the live API | ✅ |
+| Model selector (Claude Code aliases) | ✅ |
 | Drag-and-drop, paste and picker attachments | ✅ |
 | Light / dark / system themes | ✅ |
 | Settings across 8 sections | ✅ |
@@ -68,15 +68,14 @@ a precondition rather than a setting.
 - Session profiles (coding, research, writing)
 - Local model providers behind the existing `AIProvider` trait
 
-### Claude Code integration
+### Coding sessions
 
-The direction worth the most: a project could expose a **Coding Session** that
-runs Claude Code against its working folder, appearing in the same sidebar as
-ordinary conversations. Normal chats stay in the desktop UI; the coding
-session gets a terminal-backed view, shared project instructions, and shared
-history.
+Claude Code is already the backend, with every tool switched off because a
+chat window should not touch your files. The next step is a **Coding
+Session**: the same project, the same sidebar, but tools enabled and scoped to
+its working folder, with an explicit per-tool approval flow.
 
-That is the thing this client could do that a macOS-parity client would not —
+That is the thing this client can do that a macOS-parity client would not —
 and the reason the schema already carries `working_dir` on projects.
 
 ## Deliberately not planned

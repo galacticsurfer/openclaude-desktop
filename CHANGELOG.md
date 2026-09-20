@@ -5,6 +5,30 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed — no API billing anywhere
+
+The app no longer has an API credential of any kind. It now talks to Claude
+exclusively through the **Claude Code CLI**, running as you, under the login
+you already have. Requests go via your existing Claude Code plan; there is no
+separate bill, and nothing to paste or store.
+
+- **Removed**: API key entry, system-keyring storage, the Anthropic HTTP
+  client, `ant auth login` browser sign-in, base-URL override, max-tokens and
+  temperature settings, and the cost-estimate/pricing feature — all of which
+  existed only to configure or account for API billing.
+- **Added**: `ClaudeCodeProvider`, driving `claude --print --output-format
+  stream-json`. Each conversation maps to one Claude Code session
+  (`--session-id`, then `--resume`), so multi-turn context is the CLI's.
+- **Security**: the app now makes no network request at all — it opens a pipe
+  to a local process and nothing else. Every built-in tool is disabled by
+  name, so a reply cannot read files or run commands, and the CLI runs in an
+  empty scratch directory unless a project names a working folder. Nothing
+  reads Claude Code's credential files.
+
+Requires Claude Code to be installed and signed in.
+
 ## [0.1.0] — 2026-09-20
 
 First public release. Phase 1 is complete: this is usable as an everyday

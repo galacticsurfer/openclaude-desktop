@@ -6,17 +6,14 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useConversationStore } from '@/stores/useConversationStore';
 import { Button } from '@/components/ui/Button';
-import { Switch } from '@/components/ui/Switch';
-import { Textarea } from '@/components/ui/Input';
 import { Group, Row } from '../SettingsDialog';
 import { formatBytes } from '@/lib/format';
 import type { StorageStats } from '@/types';
 
 export function PrivacyPanel() {
-  const { settings, set } = useSettingsStore();
+  const { settings } = useSettingsStore();
   const { toast, confirm } = useUIStore();
   const [stats, setStats] = useState<StorageStats | null>(null);
-  const [pricingDraft, setPricingDraft] = useState<string | null>(null);
 
   useEffect(() => {
     void api.storageStats().then(setStats).catch(() => setStats(null));
@@ -49,62 +46,21 @@ export function PrivacyPanel() {
         <dl className="space-y-2 text-[13px] leading-snug">
           <Fact term="Conversations" value="Stored only on this computer, in a local SQLite database." />
           <Fact
-            term="API requests"
-            value="Message text and attachments are sent to api.anthropic.com when you send a message, and nowhere else."
+            term="Requests"
+            value="Sent through the Claude Code CLI running on this machine, under your own login. This app makes no network request of its own."
           />
-          <Fact term="API key" value="Held in your system keyring. Never written to the database, a config file, or a log." />
+          <Fact
+            term="Credentials"
+            value="None. This app stores no API key and never reads Claude Code's credentials."
+          />
+          <Fact
+            term="Tools"
+            value="File and command tools are disabled, so a reply cannot read your files or run anything."
+          />
           <Fact term="Telemetry" value="None. No analytics, no crash reporting, no update pings." />
           <Fact term="Logs" value="Diagnostics only — message content is never logged." />
         </dl>
       </section>
-
-      <Group title="Cost estimates">
-        <Switch
-          checked={settings['privacy.showCost']}
-          onChange={(v) => void set('privacy.showCost', v)}
-          label="Show estimated cost"
-          description="Off by default, because the prices below are a local copy that can go out of date. They are never fetched from anywhere — edit them to match your account."
-        />
-        {settings['privacy.showCost'] && (
-          <div className="space-y-2 py-3">
-            <p className="text-[12.5px] text-ink-faint">
-              Prices per million tokens · as of {settings['privacy.pricing']?.asOf ?? 'unknown'}
-            </p>
-            <Textarea
-              rows={10}
-              value={pricingDraft ?? JSON.stringify(settings['privacy.pricing'], null, 2)}
-              onChange={(e) => setPricingDraft(e.target.value)}
-              spellCheck={false}
-              aria-label="Pricing table"
-              className="font-mono text-[12px]"
-            />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={pricingDraft === null}
-                onClick={() => {
-                  try {
-                    const parsed = JSON.parse(pricingDraft ?? '');
-                    void set('privacy.pricing', parsed);
-                    setPricingDraft(null);
-                    toast('success', 'Pricing saved.');
-                  } catch {
-                    toast('error', 'That is not valid JSON.');
-                  }
-                }}
-              >
-                Save pricing
-              </Button>
-              {pricingDraft !== null && (
-                <Button size="sm" variant="ghost" onClick={() => setPricingDraft(null)}>
-                  Discard
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      </Group>
 
       <Group title="Local data">
         {stats && (
@@ -121,7 +77,7 @@ export function PrivacyPanel() {
 
         <Row
           label="Export everything"
-          description="One JSON file with every conversation, message, project and setting. Never includes your API key."
+          description="One JSON file with every conversation, message, project and setting."
           control={
             <Button variant="secondary" size="sm" onClick={() => void exportEverything()}>
               <Download size={13} /> Export data
@@ -131,7 +87,7 @@ export function PrivacyPanel() {
 
         <Row
           label="Delete all conversations"
-          description="Removes every conversation, message and attachment from this computer. Settings and your API key are kept."
+          description="Removes every conversation, message and attachment from this computer. Your settings are kept."
           control={
             <Button
               variant="danger"

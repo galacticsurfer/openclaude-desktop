@@ -1,8 +1,7 @@
 //! Conversation export.
 //!
-//! Exports never include the API key, provider base URL, or anything else
-//! from the settings table — only the conversation itself and metadata the
-//! user can see in the UI.
+//! Exports contain only the conversation itself and metadata the user can
+//! already see in the UI.
 
 use crate::db::models::*;
 use crate::db::repo;

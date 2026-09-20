@@ -58,33 +58,3 @@ export function dateGroup(ms: number): string {
   }
   return String(d.getFullYear());
 }
-
-/** Estimated cost in the pricing table's currency, or null if unpriced. */
-export function estimateCost(
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-  pricing: { models: Record<string, { input: number; output: number }> } | undefined,
-): number | null {
-  if (!pricing?.models) return null;
-  // Exact id first, then the longest prefix match so dated ids such as
-  // `claude-sonnet-4-5-20260101` resolve to their family entry.
-  const exact = pricing.models[model];
-  const entry =
-    exact ??
-    Object.entries(pricing.models)
-      .filter(([id]) => model.startsWith(id))
-      .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
-  if (!entry) return null;
-  return (inputTokens / 1e6) * entry.input + (outputTokens / 1e6) * entry.output;
-}
-
-export function formatCost(value: number, currency = 'USD'): string {
-  const fmt = new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: value < 1 ? 3 : 2,
-    maximumFractionDigits: value < 1 ? 4 : 2,
-  });
-  return fmt.format(value);
-}

@@ -5,11 +5,10 @@ use crate::db::models::*;
 use crate::db::repo;
 use crate::db::Db;
 use crate::error::{AppError, ErrorDetail, Result};
+use crate::provider::claude_code::{ClaudeCodeProvider, SessionRef};
 use crate::provider::{
-    anthropic::AnthropicProvider, AIProvider, ChatRequest, ContentBlock, MediaSource,
-    ProviderMessage, StreamEvent,
+    AIProvider, ChatRequest, ContentBlock, MediaSource, ProviderMessage, StreamEvent,
 };
-use crate::secrets::{AuthMode, Credential};
 use crate::settings_defaults as sk;
 use crate::state::{AppState, StreamHandle};
 use base64::Engine;
@@ -196,7 +195,7 @@ pub fn build_messages(
 
 pub struct RequestPlan {
     pub request: ChatRequest,
-    pub base_url: Option<String>,
+    pub conversation: Conversation,
 }
 
 /// Assemble everything needed for one generation from the database.
@@ -227,57 +226,57 @@ pub fn plan_request(
         return Err(AppError::invalid("There is nothing to send yet."));
     }
 
-    let max_tokens: u32 = repo::settings::get_or(&conn, sk::MAX_TOKENS, 8192u32).clamp(256, 64_000);
-    let temperature: Option<f64> = repo::settings::get_or(&conn, sk::TEMPERATURE, None);
-    let base_url: Option<String> = repo::settings::get_or(&conn, sk::BASE_URL, None);
-
     Ok(RequestPlan {
         request: ChatRequest {
-            model: conversation.model,
+            model: conversation.model.clone(),
             system,
             messages,
-            max_tokens,
-            temperature,
+            // The CLI owns response limits and sampling; neither is exposed
+            // as a flag, so carrying them here would be a lie.
+            max_tokens: 0,
+            temperature: None,
             stop_sequences: Vec::new(),
         },
-        base_url,
+        conversation,
     })
 }
 
 // --- running a generation -------------------------------------------------
 
-/// Resolve whichever credential the app is configured to use.
+/// Where the CLI process should run for this conversation.
 ///
-/// The OAuth token is fetched fresh on every call rather than cached: it is
-/// short-lived, the Anthropic CLI already owns refresh, and one ~50ms
-/// subprocess is noise beside a multi-second completion. Caching it here
-/// would mean reimplementing expiry logic that belongs to the CLI.
-pub fn resolve_credential(db: &Db) -> Result<Credential> {
-    let (mode, profile): (AuthMode, Option<String>) = {
-        let conn = db.conn();
-        (
-            repo::settings::get_or(&conn, sk::AUTH_MODE, AuthMode::ApiKey),
-            repo::settings::get_or(&conn, sk::OAUTH_PROFILE, None),
-        )
-    };
-
-    match mode {
-        AuthMode::Oauth => Ok(Credential::Oauth(crate::oauth::access_token(
-            profile.as_deref(),
-        )?)),
-        AuthMode::ApiKey => crate::secrets::get_api_key("anthropic")?
-            .map(Credential::ApiKey)
-            .ok_or(AppError::MissingCredentials),
+/// A project's working folder when it has one — that is the point of the
+/// setting, and it lets `CLAUDE.md` in that repo apply. Otherwise a dedicated
+/// empty directory, so a stray `CLAUDE.md` in some unrelated path cannot
+/// silently join the conversation.
+fn working_dir(db: &Db, conversation: &Conversation) -> std::path::PathBuf {
+    if let Some(dir) = conversation
+        .project_id
+        .as_deref()
+        .and_then(|pid| repo::projects::get(&db.conn(), pid).ok())
+        .and_then(|p| p.working_dir)
+        .filter(|d| !d.trim().is_empty())
+    {
+        let path = std::path::PathBuf::from(dir);
+        if path.is_dir() {
+            return path;
+        }
     }
+    crate::paths::session_dir()
 }
 
-fn provider_for(db: &Db, base_url: Option<String>) -> Result<AnthropicProvider> {
-    let credential = resolve_credential(db)?;
-    let base = base_url.or_else(|| {
-        let conn = db.conn();
-        repo::settings::get_or(&conn, sk::BASE_URL, None)
-    });
-    AnthropicProvider::new(credential, base)
+fn provider_for(db: &Db, conversation: &Conversation) -> Result<ClaudeCodeProvider> {
+    // The conversation id doubles as the Claude Code session id — it is
+    // already a UUID, which is what `--session-id` requires. The first turn
+    // claims it; later turns resume it.
+    let session = match conversation.provider_conversation_id.as_deref() {
+        Some(id) if !id.is_empty() => SessionRef::Resume(id.to_string()),
+        _ => SessionRef::New(conversation.id.clone()),
+    };
+    Ok(ClaudeCodeProvider::new(
+        working_dir(db, conversation),
+        session,
+    ))
 }
 
 /// Append a user turn and start generating a reply.
@@ -493,10 +492,11 @@ async fn run_stream(
         Ok(p) => p,
         Err(e) => return finish_with_error(app, &db, conversation_id, message_id, e, ""),
     };
-    let provider = match provider_for(&db, plan.base_url) {
+    let provider = match provider_for(&db, &plan.conversation) {
         Ok(p) => p,
         Err(e) => return finish_with_error(app, &db, conversation_id, message_id, e, ""),
     };
+    let first_turn = plan.conversation.provider_conversation_id.is_none();
 
     let mut stream = match provider.stream_message(plan.request).await {
         Ok(s) => s,
@@ -610,6 +610,15 @@ async fn run_stream(
             },
         )?;
         repo::conversations::touch(&conn, conversation_id, now_ms())?;
+        // Claude Code adopts the id we passed on the first turn; record it so
+        // the next turn resumes the same session instead of starting over.
+        if first_turn && !cancelled {
+            let _ = conn.execute(
+                "UPDATE conversations SET provider_conversation_id = ?2 WHERE id = ?1
+                   AND provider_conversation_id IS NULL",
+                rusqlite::params![conversation_id, conversation_id],
+            );
+        }
     }
 
     let _ = app.emit(
@@ -780,7 +789,7 @@ fn maybe_generate_title(app: AppHandle, state: Arc<AppState>, conversation_id: S
     tauri::async_runtime::spawn(async move {
         let db = state.db.clone();
 
-        let (enabled, locked, first_user, model, title_model, base_url) = {
+        let (enabled, locked, first_user, model, title_model) = {
             let conn = db.conn();
             let Ok(c) = repo::conversations::get(&conn, &conversation_id) else {
                 return;
@@ -791,8 +800,7 @@ fn maybe_generate_title(app: AppHandle, state: Arc<AppState>, conversation_id: S
                 .and_then(|ms| ms.into_iter().find(|m| m.role == Role::User))
                 .map(|m| m.content);
             let tm: Option<String> = repo::settings::get_or(&conn, sk::TITLE_MODEL, None);
-            let base: Option<String> = repo::settings::get_or(&conn, sk::BASE_URL, None);
-            (enabled, c.title_locked, first, c.model, tm, base)
+            (enabled, c.title_locked, first, c.model, tm)
         };
 
         if locked {
@@ -820,12 +828,19 @@ fn maybe_generate_title(app: AppHandle, state: Arc<AppState>, conversation_id: S
             return;
         }
 
-        let Ok(credential) = resolve_credential(&db) else {
+        let Ok(conversation) = ({
+            let conn = db.conn();
+            repo::conversations::get(&conn, &conversation_id)
+        }) else {
             return;
         };
-        let Ok(provider) = AnthropicProvider::new(credential, base_url) else {
-            return;
-        };
+        // A fresh throwaway session: asking for a title inside the
+        // conversation's own session would put it in the transcript.
+        let provider = ClaudeCodeProvider::new(
+            crate::paths::session_dir(),
+            SessionRef::New(crate::db::models::new_id()),
+        );
+        let _ = &conversation;
 
         let excerpt: String = first_user.chars().take(2000).collect();
         let req = ChatRequest {
@@ -837,8 +852,8 @@ fn maybe_generate_title(app: AppHandle, state: Arc<AppState>, conversation_id: S
                     text: format!("{TITLE_PROMPT}{excerpt}"),
                 }],
             }],
-            max_tokens: 32,
-            temperature: Some(0.0),
+            max_tokens: 0,
+            temperature: None,
             stop_sequences: Vec::new(),
         };
 

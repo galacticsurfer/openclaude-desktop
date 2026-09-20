@@ -17,11 +17,8 @@ pub enum AppError {
     #[error("{0}")]
     Invalid(String),
 
-    #[error("No API key is configured. Add one in Settings → Claude.")]
+    #[error("Claude Code is not available. Check it is installed and signed in.")]
     MissingCredentials,
-
-    #[error("Could not reach the system keyring: {0}")]
-    Keyring(String),
 
     #[error("{}", .0.message)]
     Provider(Box<ErrorDetail>),
@@ -75,7 +72,6 @@ impl AppError {
             Self::NotFound(_) => "not_found",
             Self::Invalid(_) => "invalid",
             Self::MissingCredentials => "missing_credentials",
-            Self::Keyring(_) => "keyring",
             Self::Provider(d) => &d.kind,
             Self::Offline => "offline",
             Self::Io(_) => "io",
@@ -101,15 +97,6 @@ impl From<std::io::Error> for AppError {
 impl From<serde_json::Error> for AppError {
     fn from(e: serde_json::Error) -> Self {
         Self::Internal(format!("Malformed data: {e}"))
-    }
-}
-
-impl From<keyring::Error> for AppError {
-    fn from(e: keyring::Error) -> Self {
-        match e {
-            keyring::Error::NoEntry => Self::MissingCredentials,
-            other => Self::Keyring(other.to_string()),
-        }
     }
 }
 

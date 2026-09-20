@@ -18,8 +18,8 @@ Native-feeling, fast, local-first. Not a browser wrapper.
 > **This is an independent open-source project.** It is not affiliated with,
 > endorsed by, or sponsored by Anthropic. "Claude" is a trademark of
 > Anthropic, PBC, used here only to describe what this client connects to.
-> You need your own [Anthropic API key](https://console.anthropic.com/settings/keys);
-> usage is billed to your account.
+> It requires [Claude Code](https://code.claude.com/docs) to be installed and
+> signed in — usage goes through your existing Claude Code login.
 
 ---
 
@@ -91,24 +91,25 @@ run with `--appimage-extract-and-run`.
 ### Requirements
 
 Ubuntu 24.04+, Debian 13+, Fedora 39+, Arch, or anything else with
-**WebKitGTK 4.1**. Distributions carrying only webkit2gtk 4.0 (Ubuntu 22.04,
+**WebKitGTK 4.1**, plus **Claude Code** installed and signed in. Distributions carrying only webkit2gtk 4.0 (Ubuntu 22.04,
 Debian 11) cannot run this — a Tauri 2 constraint, not a choice.
 
-### Connecting your account
+### Connecting
 
-On first launch you can connect in either of two ways:
+Nothing to paste. OpenClaude has **no API credentials of its own** and makes
+no network request itself — it drives the `claude` command in its documented
+headless mode, running as you, under the login you already have.
 
-- **Sign in with your browser** — if the
-  [Anthropic CLI](https://github.com/anthropics/anthropic-cli) (`ant`) is
-  installed, OpenClaude offers `ant auth login`: a browser sign-in with an
-  org/workspace picker and a short-lived token that refreshes itself. Nothing
-  long-lived is stored by this app.
-- **Paste an API key** — stored in your system keyring and nowhere else.
+On first launch it just checks that `claude` is on your PATH. If it isn't,
+install Claude Code and sign in with it once.
 
-**Both bill your Anthropic API account.** Neither uses a Claude Pro or Max
-subscription: subscription-backed usage is available only to Anthropic's own
-first-party clients, and this app will not impersonate one or read their
-credentials. See [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md).
+This means:
+
+- **No API key anywhere.** Nothing to store, nothing to leak, no keyring.
+- **No separate bill.** Requests go through Claude Code, on whatever plan you
+  already use with it.
+- **File and command tools are disabled** for these conversations, so a reply
+  cannot read your files or run anything.
 
 ## Features
 
@@ -174,12 +175,14 @@ The API key is in your **system keyring**, never in any of these.
 
 ## Privacy and security
 
-- The API key is stored via the Secret Service API (GNOME Keyring, KWallet).
-  **There is deliberately no IPC command that can read it back** — the UI can
-  set, test and delete a key, and ask whether one exists, never retrieve one.
-- All networking happens in the Rust process. The web layer's
-  `connect-src` is `'self'`, so the UI *cannot* make an outbound request —
-  which means prompt-injected content has nowhere to send your conversation.
+- **There are no credentials to protect**, because the app holds none. It
+  never reads Claude Code's credential files and has no OAuth client of its
+  own; authentication is entirely the CLI's business.
+- The app makes **no network request at all**. The web layer's `connect-src`
+  is `'self'`, and the Rust side only spawns a local process — so
+  prompt-injected content has nowhere to send your conversation.
+- **Every built-in tool is disabled** (`--disallowed-tools`), and the CLI runs
+  in an empty scratch directory unless a project names a working folder.
 - Model output is rendered without raw HTML (`rehype-raw` is not a
   dependency), and links are handed to your browser only for http/https/mailto.
 - No telemetry of any kind. There is no setting to turn off, because there is

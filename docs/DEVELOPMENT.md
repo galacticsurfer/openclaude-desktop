@@ -4,6 +4,8 @@
 
 - Rust 1.77+ (`rustup`)
 - Node 18.18+ (20+ recommended)
+- [Claude Code](https://code.claude.com/docs), installed and signed in — the
+  app's only backend
 - The WebKitGTK toolchain: `./scripts/setup-deps.sh`
 
 ## Running
@@ -49,17 +51,18 @@ cargo test --manifest-path src-tauri/Cargo.toml   # 75 Rust tests
 npm run typecheck && npm run lint && npm run rust:lint
 ```
 
-**No test requires an Anthropic API key or makes a real network call.**
-Provider behaviour is covered against a `wiremock` server
-(`src-tauri/tests/streaming.rs`) that serves recorded SSE. Keep it that way:
-a test suite that spends money is a test suite people stop running.
+**No test spawns the CLI, needs credentials, or makes a network call.** The
+provider is tested by inspecting the command it would run and by parsing
+recorded CLI output. Keep it that way: a suite that consumes quota is a suite
+people stop running.
 
 Coverage worth knowing about:
 
 | Area | Where |
 | --- | --- |
-| SSE decoding, incl. split frames and multi-byte chars | `src/provider/sse.rs` |
-| Streaming, error mapping, cancellation | `tests/streaming.rs` |
+| NDJSON decoding, incl. split lines and multi-byte chars | `src/provider/ndjson.rs` |
+| Stream-event mapping and error wording | `src/provider/wire.rs` |
+| CLI argument construction, record parsing | `src/provider/claude_code.rs` |
 | Persistence, ordering, crash recovery | `tests/persistence.rs` |
 | Request assembly, role alternation, titles, branching | `tests/requests.rs` |
 | Search escaping, FTS sync, scale | `tests/search_and_projects.rs` |
@@ -78,19 +81,20 @@ OPENCLAUDE_DB=/tmp/scratch.db openclaude   # a throwaway database
 Developer mode adds timing and diagnostics. It never logs prompt or response
 content, and never a credential.
 
-## Working against a mock API
+## Inspecting what the CLI is asked to do
 
-To exercise the app without spending anything, point it at a local server:
+The provider builds a `tokio::process::Command`; its unit tests assert on the
+arguments rather than running anything. To see a real exchange by hand:
 
-```sql
--- in ~/.local/share/openclaude/openclaude.db
-INSERT INTO settings(key, value, updated_at)
-VALUES ('claude.baseUrl', '"http://127.0.0.1:8899"', 0)
-ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+```bash
+echo 'say hi' | claude --print --output-format stream-json \
+  --include-partial-messages --verbose \
+  --disallowed-tools "Bash Read Write Edit WebFetch" \
+  --permission-mode dontAsk
 ```
 
-The server needs `GET /v1/models` and `POST /v1/messages` (SSE when
-`stream: true`). This is how the streaming UI was developed and verified.
+Each line is one JSON record: `system/init` (carries the session id),
+`stream_event` (wrapping the usual Anthropic event shapes), then `result`.
 
 ## Conventions
 

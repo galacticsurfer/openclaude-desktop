@@ -8,14 +8,15 @@ turns on one thing more than any other: **where the API key lives**.
 
 | Option | Verdict |
 | --- | --- |
-| **Tauri 2 + React + TS** | **Chosen.** ~10 MB binary, ~90 MB idle RSS, sub-second cold start. The system WebView means no bundled browser. Critically, the Rust side can own all networking so the API key never enters the renderer — which in turn lets the CSP forbid the UI from making any outbound request at all. |
+| **Tauri 2 + React + TS** | **Chosen.** ~10 MB binary, ~90 MB idle RSS, sub-second cold start. The system WebView means no bundled browser. The Rust side owns the backend process, so the renderer needs no network access at all and the CSP can forbid it outright. |
 | Electron + React | Fastest to write, and the ecosystem is unmatched. But it ships a ~150 MB Chromium per app, idles around 250–400 MB, and the renderer is where people naturally put `fetch` — making key isolation a discipline rather than a property enforced by the platform. Rejected on footprint and on that security posture. |
 | Flutter | Excellent rendering and startup. But it draws its own widgets, so it never inherits GTK theming, system fonts, or the desktop's accessibility stack, and Linux desktop support is the least mature target. Markdown and syntax highlighting would be rebuilt from scratch. Rejected. |
 | GTK4 + Rust | The most genuinely native result and the best memory profile. The cost is the UI layer: rich Markdown, streaming text, syntax highlighting and diffing are all hand-built against a much smaller ecosystem. That is a multi-month detour before feature parity. Rejected for Phase 1, and worth revisiting only if the WebView proves limiting. |
 | Qt | Mature and portable, but pulls in a large dependency for a Linux-first app, and the licensing conversation (LGPL dynamic linking, or commercial) is a burden a small open-source project does not need. Rejected. |
 
 The deciding trade-off is that Tauri gives Electron's UI ecosystem with a
-native-process security boundary in between. The main risk it carries is
+native-process boundary in between — which is also what makes driving a local
+CLI as the backend natural rather than a hack. The main risk it carries is
 WebKitGTK version skew across distributions — see
 [LINUX-RISKS.md](LINUX-RISKS.md).
 
@@ -39,14 +40,13 @@ WebKitGTK version skew across distributions — see
 │       ├── chat.rs        orchestration, streaming, recovery  │
 │       ├── db/repo/       SQL, one module per aggregate       │
 │       ├── attachments.rs validation + content-addressed blobs│
-│       ├── export.rs      Markdown / JSON / text              │
-│       └── secrets.rs     Secret Service, never logged        │
+│       └── export.rs      Markdown / JSON / text              │
 │                │                          │                 │
 │         provider/ (AIProvider)       db/ (SQLite)            │
 │                │                          │                 │
 └────────────────┼──────────────────────────┼─────────────────┘
                  │                          │
-       api.anthropic.com            ~/.local/share/openclaude
+      `claude` CLI (subprocess)     ~/.local/share/openclaude
 ```
 
 Dependencies point inwards. `commands/` may call `chat`, `db::repo` and
@@ -55,32 +55,23 @@ know Tauri exists beyond emitting events. That is what lets the whole core be
 tested with no window on screen — the integration suites in `src-tauri/tests/`
 never start a Tauri app.
 
-### Authentication
+### The backend is the Claude Code CLI
 
-Two mechanisms behind one `Credential` type: an API key from the keyring, or a
-short-lived OAuth token from the Anthropic CLI (`ant auth login`). `chat.rs`
-resolves whichever the `claude.authMode` setting names; everything downstream
-just sees a `Credential`, and the provider derives the correct headers from
-its variant.
+There is no HTTP client and no credential in this app. `chat.rs` builds a
+`ClaudeCodeProvider` that spawns `claude --print --output-format stream-json`
+and reads NDJSON from its stdout. Each conversation maps to one Claude Code
+session: the conversation's own UUID is passed as `--session-id` on the first
+turn and `--resume`d afterwards, which is why `provider_conversation_id`
+exists in the schema.
 
-Claude Code's `/login` is a first-party flow and deliberately not reused — see
-[SECURITY-MODEL.md](SECURITY-MODEL.md).
+Because the CLI owns conversation history, only the latest user turn is sent;
+replaying our stored history would duplicate it. Our database remains the
+source of truth for the UI, search and export.
 
-### Why the HTTP client is in Rust
-
-It would have been less code to call the API from TypeScript. Putting it in
-Rust buys four things:
-
-1. **The key never reaches the renderer.** There is deliberately no command
-   that returns it. The UI can set, test, delete, and ask *whether* a key
-   exists — never read one.
-2. **The CSP can be closed.** Because nothing in the UI needs to reach the
-   network, `connect-src` is `'self' ipc:`. Prompt-injected markup cannot
-   exfiltrate a conversation, because there is no egress.
-3. **Streams survive the UI.** A webview reload or a crashed renderer does not
-   abort an in-flight response; the Rust task keeps writing to SQLite.
-4. **Durability.** The stream is flushed to the database every 400 ms as it
-   arrives, so a hard kill costs a sentence, not an answer.
+Usefully, the CLI wraps **the same Anthropic event shapes** inside its
+`stream_event` records, so `provider/wire.rs` maps them to `StreamEvent` and
+the rest of the streaming machinery — buffering, flushing, recovery — is
+unchanged from when this spoke HTTP.
 
 ### The provider seam
 
@@ -94,11 +85,10 @@ pub trait AIProvider: Send + Sync {
 }
 ```
 
-Only `AnthropicProvider` implements it, and nothing else is planned for
-Phase 1. The point of the trait is not multi-provider support today — it is
-that `chat.rs` speaks in `StreamEvent`, `ChatRequest` and `ContentBlock`
-rather than in Anthropic's wire format, so adding a provider later is a new
-module instead of a refactor.
+Only `ClaudeCodeProvider` implements it. The point of the trait is not
+multi-provider support today — it is that `chat.rs` speaks in `StreamEvent`,
+`ChatRequest` and `ContentBlock` rather than in any backend's wire format, so
+adding one later is a new module instead of a refactor.
 
 ## State management
 

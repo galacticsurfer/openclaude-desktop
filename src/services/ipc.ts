@@ -38,7 +38,7 @@ export class AppError extends Error {
     return new AppError({ kind: 'unknown', message, retryable: false });
   }
 
-  /** True when the failure is "no API key yet" rather than a real fault. */
+  /** True when Claude Code is unavailable, rather than a real fault. */
   get isMissingCredentials(): boolean {
     return this.kind === 'missing_credentials';
   }

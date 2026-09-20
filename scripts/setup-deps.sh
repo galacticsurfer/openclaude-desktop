@@ -15,8 +15,6 @@ PACKAGES=(
   libayatana-appindicator3-dev
   # SVG icon rendering used by the bundler.
   librsvg2-dev
-  # Credential storage via the Secret Service API.
-  libsecret-1-dev
   # Toolchain and packaging.
   build-essential curl wget file pkg-config patchelf desktop-file-utils
   # Needed to *run* AppImages on Ubuntu 24.04.
@@ -30,7 +28,7 @@ sudo apt-get install -y "${PACKAGES[@]}"
 echo
 echo "Checking pkg-config can see everything:"
 missing=0
-for mod in webkit2gtk-4.1 javascriptcoregtk-4.1 gtk+-3.0 libsoup-3.0 glib-2.0 libsecret-1; do
+for mod in webkit2gtk-4.1 javascriptcoregtk-4.1 gtk+-3.0 libsoup-3.0 glib-2.0; do
   if version=$(pkg-config --modversion "$mod" 2>/dev/null); then
     printf '  %-26s %s\n' "$mod" "$version"
   else

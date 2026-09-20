@@ -141,40 +141,11 @@ export interface UsageTotals {
   messageCount: number;
 }
 
-export type SecretBackend = 'keyring' | 'memoryOnly';
-
-/** How the app authenticates: a stored API key, or browser sign-in. */
-export type AuthMode = 'apiKey' | 'oauth';
-
-export interface CliStatus {
-  /** Whether the Anthropic CLI (`ant`) is installed. */
-  available: boolean;
-  /** Whether a profile is signed in and can mint a token right now. */
-  signedIn: boolean;
-  /** `ant auth status` output — names the org/workspace, never a token. */
-  detail: string | null;
-  profile: string | null;
-}
-
-export interface AuthOptions {
-  credentials: CredentialStatus;
-  cli: CliStatus;
-  mode: AuthMode;
-  profile: string | null;
-}
-
-export interface CredentialStatus {
-  configured: boolean;
-  backend: SecretBackend;
-  mode: AuthMode;
-  /** Last four characters only. The key itself never crosses IPC. */
-  hint: string | null;
-}
-
-export interface TestResult {
-  ok: boolean;
-  modelCount: number;
-  models: ModelInfo[];
+/** Whether this app's only backend — the Claude Code CLI — is usable. */
+export interface ClaudeCodeStatus {
+  installed: boolean;
+  version: string | null;
+  path: string | null;
 }
 
 export interface AppInfo {
@@ -259,22 +230,10 @@ export interface StreamEndEvent {
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type SendKeyPreference = 'enter' | 'ctrlEnter';
 
-export interface PricingTable {
-  asOf: string;
-  currency: string;
-  note: string;
-  models: Record<string, { input: number; output: number }>;
-}
-
 export interface Settings {
   'claude.defaultModel': string | null;
-  'claude.maxTokens': number;
-  'claude.temperature': number | null;
   'claude.autoTitle': boolean;
   'claude.titleModel': string | null;
-  'claude.baseUrl': string | null;
-  'claude.authMode': AuthMode;
-  'claude.oauthProfile': string | null;
 
   'appearance.theme': ThemePreference;
   'appearance.fontSize': number;
@@ -290,8 +249,6 @@ export interface Settings {
   'notifications.minDurationMs': number;
 
   'privacy.historyEnabled': boolean;
-  'privacy.showCost': boolean;
-  'privacy.pricing': PricingTable;
 
   'advanced.debugLogs': boolean;
   'advanced.trashRetentionDays': number;

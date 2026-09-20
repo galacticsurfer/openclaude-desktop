@@ -21,68 +21,41 @@ jewel.
 Everything rendered in the webview — model output, attached file contents,
 search snippets — is treated as untrusted data.
 
-## Authentication
+## Authentication — there is none to hold
 
-Two supported mechanisms, both authenticating to the Anthropic **API**:
+This app has no API key, no OAuth client, and no credential store. It talks to
+Claude by running the `claude` binary in its documented headless mode
+(`--print --output-format stream-json`), as the user, under the login they
+already established with Claude Code.
 
-| | Stored where | Header |
-| --- | --- | --- |
-| API key | System keyring | `x-api-key` |
-| Browser sign-in | Anthropic CLI profile (`~/.config/anthropic`) | `Authorization: Bearer` + `anthropic-beta: oauth-2025-04-20` |
+That removes the largest class of risk outright: there is no secret to leak
+into a log, an export, an error payload or a crash dump, because there is no
+secret. It also means this app makes **no outbound network connection of any
+kind** — the only thing it opens is a pipe to a local process.
 
-Modelled as a `Credential` enum rather than a bare string, so the provider
-cannot send the wrong header pair — sending both an `x-api-key` and an
-`Authorization` header is rejected by the API, and `/v1/messages` rejects an
-OAuth token without the beta opt-in. `Credential` implements `Debug` by hand
-to redact itself, so a struct containing one cannot leak the secret into a log
-line or a panic message.
+**It does not read Claude Code's credentials.** Nothing in this codebase
+touches `~/.claude`, and there is no embedded OAuth client id. How the CLI
+authenticates stays entirely the CLI's concern.
 
-### What is deliberately not implemented
+`--bare` is deliberately never passed: that flag forces API-key authentication
+and explicitly never reads the user's OAuth login, which is the opposite of
+what this app wants.
 
-Claude Code's `/login` is a **first-party** OAuth flow: Anthropic registered
-Claude Code as its own OAuth client, and subscription-backed usage is tied to
-that client. A third-party application could only join it by embedding that
-client id — impersonating a first-party application — or by reading
-`~/.claude/.credentials.json`. Both are out of bounds, so neither is
-implemented: nothing in this codebase reads `~/.claude`, and there is no
-embedded OAuth client id.
+### Tool access is off
 
-The supported equivalent is the Anthropic CLI's own OAuth (`ant auth login`),
-whose profile the official SDKs already share. OpenClaude asks the CLI for a
-token (`ant auth print-credentials --access-token`) rather than parsing its
-credential files, so token storage and refresh remain the CLI's concern. The
-token is fetched per request: it is short-lived, the CLI owns refresh, and one
-subprocess is negligible beside a completion. The CLI is invoked directly —
-never through a shell — and a profile name is validated against
-`[A-Za-z0-9._-]{1,64}` before it becomes an argument.
+A chat window is not a coding agent. Every built-in tool is disabled by name
+(`Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, …)
+rather than relying on `--restricted`, which only removes the command-running
+tools and would leave file access intact. `--permission-mode dontAsk` is set
+too: there is no TTY, so a permission prompt would hang forever.
 
-## The API key
+The CLI runs in an empty directory under `~/.local/share/openclaude/sessions`
+unless the conversation's project names a working folder — otherwise a stray
+`CLAUDE.md` somewhere on disk could silently join the conversation.
 
-Rules, enforced structurally rather than by convention:
-
-- **There is no command that returns the key.** The IPC surface offers
-  `set_api_key`, `delete_api_key`, `test_api_key` and `credential_status`.
-  `credential_status` returns a boolean, the backend in use, and the last four
-  characters — enough to tell two keys apart, never enough to use one.
-- Stored via the Secret Service API (GNOME Keyring, KWallet's bridge) using
-  the `keyring` crate.
-- **Never** in SQLite, never in a config file, never in an environment
-  variable read by the app, never in an export.
-- Never passed to a logging macro. Errors carry a structured `ErrorDetail`
-  with category, HTTP status and Anthropic `request-id` — never headers or
-  request bodies. `a_server_error_is_retryable_and_never_leaks_the_api_key`
-  asserts the serialised error contains no `sk-ant`.
-
-### When there is no keyring
-
-Some sessions have no Secret Service (headless, minimal WM, broken
-`gnome-keyring`). The app then falls back to **memory for the current run
-only** and says so, in the sidebar badge and in Settings.
-
-The alternative — writing an obfuscated key to disk — was rejected. It looks
-like security, provides none against anyone with file access, and would
-quietly break the promise on the welcome screen. Asking the user to paste the
-key again is the honest failure mode.
+The prompt is written to the process's stdin, never passed in `argv`: an
+inlined attachment would risk the argument-length limit, and arguments are
+visible to every other process on the machine.
 
 ## Content Security Policy
 
@@ -161,8 +134,9 @@ Stated plainly rather than implied:
 - **An attacker with your user account can read your conversations.** The
   database is encrypted at rest only if your disk is. File permissions stop
   other local users, not you-as-you.
-- **The keyring is only as strong as your login keyring.** On most desktops
-  it unlocks automatically at login.
+- **Anyone who can run `claude` as you can use your Claude account**, with or
+  without this app. That is a property of having the CLI signed in, not
+  something this app adds.
 - **WebKitGTK is a system library.** Security fixes come from your
   distribution, not from this app. See [LINUX-RISKS.md](LINUX-RISKS.md).
 - **Prompt injection is not solved.** Content in an attached file can attempt

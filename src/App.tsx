@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { AppError } from '@/services/ipc';
 
 export default function App() {
-  const { settings, credentials, loading, load, refreshModels } = useSettingsStore();
+  const { settings, claudeCode, loading, load, refreshModels } = useSettingsStore();
   const { loadConversations, loadProjects, open } = useConversationStore();
   const [fatal, setFatal] = useState<string | null>(null);
   const [skippedOnboarding, setSkippedOnboarding] = useState(false);
@@ -72,7 +72,7 @@ export default function App() {
   }
 
   const needsOnboarding =
-    !settings['ui.onboarded'] && !credentials?.configured && !skippedOnboarding;
+    !settings['ui.onboarded'] && !claudeCode?.installed && !skippedOnboarding;
 
   if (needsOnboarding) {
     return (

@@ -9,6 +9,5 @@ pub mod chat;
 pub mod conversations;
 pub mod projects;
 pub mod search;
-pub mod secrets;
 pub mod settings;
 pub mod system;

@@ -1,11 +1,15 @@
 //! Provider abstraction.
 //!
-//! Only Anthropic is implemented. The trait exists so that adding a provider
-//! later is a new module rather than a refactor of the chat orchestrator — the
-//! orchestrator in `chat.rs` speaks only in these types.
+//! Only the Claude Code CLI is implemented. The trait exists so that adding a
+//! provider later is a new module rather than a refactor of the chat
+//! orchestrator — the orchestrator in `chat.rs` speaks only in these types.
+//!
+//! This app holds no API credential and makes no HTTP request of its own:
+//! everything goes through the `claude` binary, under the user's own login.
 
-pub mod anthropic;
-pub mod sse;
+pub mod claude_code;
+pub mod ndjson;
+pub mod wire;
 
 use crate::error::Result;
 use serde::{Deserialize, Serialize};

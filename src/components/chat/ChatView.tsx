@@ -20,7 +20,7 @@ export function ChatView() {
     retry, continueReply, newConversation, open, loadConversations, projects,
   } = useConversationStore();
   const { toggleSidebar, sidebarCollapsed, openOverlay, toast } = useUIStore();
-  const credentials = useSettingsStore((s) => s.credentials);
+  const claudeCode = useSettingsStore((s) => s.claudeCode);
   const [renaming, setRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
 
@@ -184,11 +184,9 @@ export function ChatView() {
               icon={MessageSquare}
               title="Start the conversation"
               body={
-                credentials?.configured
+                claudeCode?.installed
                   ? 'Type below, or drop in a file to discuss.'
-                  : credentials?.mode === 'oauth'
-                    ? 'Sign in from Settings → Claude first.'
-                    : 'Add your Anthropic API key in Settings first.'
+                  : 'Claude Code is not installed — see Settings → Claude.'
               }
             />
           ) : (
@@ -221,7 +219,7 @@ export function ChatView() {
         )}
       </div>
 
-      <Composer disabled={!credentials?.configured} />
+      <Composer disabled={!claudeCode?.installed} />
     </div>
   );
 }

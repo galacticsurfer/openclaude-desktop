@@ -8,13 +8,11 @@
 import { invoke } from './ipc';
 import type {
   AddAttachmentsResult,
-  AuthMode,
-  AuthOptions,
   AppInfo,
+  ClaudeCodeStatus,
   Attachment,
   Conversation,
   ConversationSummary,
-  CredentialStatus,
   ExportFormat,
   ExportResult,
   ListScope,
@@ -26,7 +24,6 @@ import type {
   SearchHit,
   Settings,
   StorageStats,
-  TestResult,
   UsageTotals,
 } from '@/types';
 
@@ -138,21 +135,6 @@ export const stopGeneration = (conversationId: string) =>
 export const isGenerating = (conversationId: string) =>
   invoke<boolean>('is_generating', { conversationId });
 
-// --- credentials ----------------------------------------------------------
-
-export const credentialStatus = () => invoke<CredentialStatus>('credential_status');
-export const setApiKey = (key: string) => invoke<CredentialStatus>('set_api_key', { key });
-export const deleteApiKey = () => invoke<CredentialStatus>('delete_api_key');
-export const testApiKey = (key?: string) =>
-  invoke<TestResult>('test_api_key', { key: key ?? null });
-
-/** Credential state plus whether browser sign-in is possible, in one call. */
-export const authOptions = () => invoke<AuthOptions>('auth_options');
-export const oauthBeginLogin = (profile?: string | null) =>
-  invoke<void>('oauth_begin_login', { profile: profile ?? null });
-export const setAuthMode = (mode: AuthMode) =>
-  invoke<AuthOptions>('set_auth_mode', { mode });
-
 // --- settings & models ----------------------------------------------------
 
 export const getSettings = () => invoke<Settings>('get_settings');
@@ -220,6 +202,8 @@ export const readAttachmentDataUrl = (id: string) =>
 // --- system ---------------------------------------------------------------
 
 export const appInfo = () => invoke<AppInfo>('app_info');
+/** Is the Claude Code CLI installed and runnable? */
+export const claudeCodeStatus = () => invoke<ClaudeCodeStatus>('claude_code_status');
 export const storageStats = () => invoke<StorageStats>('storage_stats');
 export const backupDatabase = (path: string) => invoke<void>('backup_database', { path });
 export const vacuumDatabase = () => invoke<void>('vacuum_database');

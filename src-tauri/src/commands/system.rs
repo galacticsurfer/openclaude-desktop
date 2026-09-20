@@ -173,3 +173,38 @@ pub fn prune_orphan_attachments(state: State<'_, Arc<AppState>>) -> Result<usize
     }
     Ok(removed)
 }
+
+/// Whether the Claude Code CLI — this app's only backend — is usable.
+///
+/// Checks that the binary runs, nothing more. Verifying sign-in would mean
+/// sending a prompt, and a status check must never consume the user's quota;
+/// a genuine auth failure surfaces with a clear message on the first send.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeCodeStatus {
+    pub installed: bool,
+    /// e.g. "2.1.266 (Claude Code)".
+    pub version: Option<String>,
+    /// Absolute path, so the user can see which install is being used.
+    pub path: Option<String>,
+}
+
+#[tauri::command]
+pub async fn claude_code_status() -> ClaudeCodeStatus {
+    let version = crate::provider::claude_code::is_installed().await;
+    let path = which_claude();
+    ClaudeCodeStatus {
+        installed: version.is_some(),
+        version,
+        path,
+    }
+}
+
+/// Resolve the binary the way the OS would, without a shell.
+fn which_claude() -> Option<String> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|dir| dir.join(crate::provider::claude_code::CLAUDE_BIN))
+        .find(|candidate| candidate.is_file())
+        .map(|p| p.to_string_lossy().into_owned())
+}

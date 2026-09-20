@@ -3,20 +3,18 @@ import { Download } from 'lucide-react';
 import * as api from '@/services/api';
 import { AppError } from '@/services/ipc';
 import { useConversationStore } from '@/stores/useConversationStore';
-import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { exportConversation } from '@/hooks/useConversationActions';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { Field, Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { formatFull, formatTokens, estimateCost, formatCost } from '@/lib/format';
+import { formatFull, formatTokens } from '@/lib/format';
 import type { Conversation, UsageTotals } from '@/types';
 
 export function ConversationInfoDialog({ conversationId }: { conversationId: string }) {
   const { closeOverlay, toast } = useUIStore();
   const { projects, loadConversations, open, currentId } = useConversationStore();
-  const settings = useSettingsStore((s) => s.settings);
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [usage, setUsage] = useState<UsageTotals | null>(null);
@@ -37,11 +35,6 @@ export function ConversationInfoDialog({ conversationId }: { conversationId: str
   }, [conversationId, toast]);
 
   if (!conversation) return null;
-
-  const showCost = settings?.['privacy.showCost'] ?? false;
-  const cost = usage
-    ? estimateCost(conversation.model, usage.inputTokens, usage.outputTokens, settings?.['privacy.pricing'])
-    : null;
 
   async function refresh() {
     await loadConversations();
@@ -97,16 +90,6 @@ export function ConversationInfoDialog({ conversationId }: { conversationId: str
             <Stat label="Cache reads" value={formatTokens(usage?.cacheReadTokens ?? 0)} />
           )}
           <Stat label="Last activity" value={formatFull(conversation.lastMessageAt ?? conversation.updatedAt)} />
-          {showCost && (
-            <Stat
-              label="Estimated cost"
-              value={
-                cost === null
-                  ? 'no price for this model'
-                  : `${formatCost(cost, settings?.['privacy.pricing']?.currency)} (estimate)`
-              }
-            />
-          )}
         </dl>
 
         {conversation.branchedFromMessageId && (

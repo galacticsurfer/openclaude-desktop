@@ -7,11 +7,12 @@
 //!                                        │        │            │
 //!                                   provider/   db/        blob store
 //!                                        │        │
-//!                                  Anthropic   SQLite
+//!                              `claude` CLI    SQLite
+//!                              (subprocess)
 //! ```
 //!
-//! The renderer has no network access and never sees the API key; every
-//! outbound request originates in this crate.
+//! The renderer has no network access, and neither does this crate: every
+//! request is made by the Claude Code CLI, spawned as a child process.
 
 pub mod attachments;
 pub mod chat;
@@ -19,10 +20,8 @@ pub mod commands;
 pub mod db;
 pub mod error;
 pub mod export;
-pub mod oauth;
 pub mod paths;
 pub mod provider;
-pub mod secrets;
 pub mod settings_defaults;
 pub mod state;
 
@@ -165,14 +164,6 @@ pub fn run() {
             commands::chat::continue_message,
             commands::chat::stop_generation,
             commands::chat::is_generating,
-            // credentials
-            commands::secrets::credential_status,
-            commands::secrets::set_api_key,
-            commands::secrets::delete_api_key,
-            commands::secrets::test_api_key,
-            commands::secrets::auth_options,
-            commands::secrets::oauth_begin_login,
-            commands::secrets::set_auth_mode,
             // settings & models
             commands::settings::get_settings,
             commands::settings::set_setting,
@@ -198,6 +189,7 @@ pub fn run() {
             commands::attachments::read_attachment_data_url,
             // system
             commands::system::app_info,
+            commands::system::claude_code_status,
             commands::system::storage_stats,
             commands::system::backup_database,
             commands::system::vacuum_database,

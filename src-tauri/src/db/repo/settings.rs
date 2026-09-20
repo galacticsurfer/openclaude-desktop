@@ -1,7 +1,7 @@
 //! Key/value application settings.
 //!
 //! Values are JSON so a setting can grow from a bool into a struct without a
-//! migration. Secrets never live here — they go to the keyring.
+//! migration. Nothing secret is stored here — the app holds no credentials.
 
 use crate::db::models::now_ms;
 use crate::error::Result;

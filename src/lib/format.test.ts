@@ -1,7 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import {
-  dateGroup, estimateCost, formatBytes, formatCost, formatRelative, formatTokens,
-} from './format';
+import { dateGroup, formatBytes, formatRelative, formatTokens } from './format';
 
 afterEach(() => vi.useRealTimers());
 
@@ -53,34 +51,5 @@ describe('dateGroup', () => {
     expect(dateGroup(new Date(2026, 8, 17, 9, 0).getTime())).toBe('Previous 7 days');
     expect(dateGroup(new Date(2026, 8, 1, 9, 0).getTime())).toBe('Previous 30 days');
     expect(dateGroup(new Date(2025, 2, 1, 9, 0).getTime())).toBe('2025');
-  });
-});
-
-describe('estimateCost', () => {
-  const pricing = {
-    models: {
-      'claude-sonnet-4-5': { input: 3, output: 15 },
-      'claude-opus-4-5': { input: 5, output: 25 },
-    },
-  };
-
-  it('prices a known model per million tokens', () => {
-    // 1M in at $3 + 0.5M out at $15 = 3 + 7.5
-    expect(estimateCost('claude-sonnet-4-5', 1_000_000, 500_000, pricing)).toBeCloseTo(10.5);
-  });
-
-  it('matches a dated model id against its family prefix', () => {
-    const dated = estimateCost('claude-sonnet-4-5-20260101', 1_000_000, 0, pricing);
-    expect(dated).toBeCloseTo(3);
-  });
-
-  it('returns null rather than guessing for an unknown model', () => {
-    expect(estimateCost('some-other-model', 1000, 1000, pricing)).toBeNull();
-    expect(estimateCost('claude-sonnet-4-5', 1000, 1000, undefined)).toBeNull();
-  });
-
-  it('formats small amounts with enough precision to be meaningful', () => {
-    expect(formatCost(0.0042, 'USD')).toMatch(/0\.004/);
-    expect(formatCost(12.5, 'USD')).toMatch(/12\.50/);
   });
 });

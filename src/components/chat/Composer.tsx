@@ -140,7 +140,7 @@ export function Composer({ disabled }: { disabled?: boolean }) {
             aria-label="Message Claude"
             // Kept short: a longer hint clips in a narrow window, and the
             // send key is discoverable via Ctrl+/ and Settings → General.
-            placeholder={disabled ? 'Connect your Anthropic account in Settings to start' : 'Message Claude…'}
+            placeholder={disabled ? 'Claude Code is not installed — see Settings' : 'Message Claude…'}
             title={sendKey === 'enter' ? 'Enter to send · Shift+Enter for a new line' : 'Ctrl+Enter to send'}
             className="min-h-[36px] flex-1 resize-none bg-transparent py-2 text-[14.5px] leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:cursor-not-allowed scroll-thin"
             style={{ maxHeight: MAX_ROWS_PX }}

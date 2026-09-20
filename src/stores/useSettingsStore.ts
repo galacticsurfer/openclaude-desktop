@@ -1,19 +1,19 @@
 import { create } from 'zustand';
 import * as api from '@/services/api';
-import type { CredentialStatus, ModelInfo, Settings, ThemePreference } from '@/types';
+import type { ClaudeCodeStatus, ModelInfo, Settings, ThemePreference } from '@/types';
 
 interface SettingsState {
   settings: Settings | null;
   models: ModelInfo[];
   modelsStale: boolean;
-  credentials: CredentialStatus | null;
+  claudeCode: ClaudeCodeStatus | null;
   loading: boolean;
 
   load: () => Promise<void>;
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => Promise<void>;
   setMany: (values: Partial<Settings>) => Promise<void>;
   refreshModels: (force?: boolean) => Promise<void>;
-  refreshCredentials: () => Promise<void>;
+  refreshClaudeCode: () => Promise<void>;
 
   /** Convenience reader with a default, for use before `load` resolves. */
   get: <K extends keyof Settings>(key: K, fallback: Settings[K]) => Settings[K];
@@ -23,15 +23,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: null,
   models: [],
   modelsStale: false,
-  credentials: null,
+  claudeCode: null,
   loading: true,
 
   async load() {
-    const [settings, credentials] = await Promise.all([
+    const [settings, claudeCode] = await Promise.all([
       api.getSettings(),
-      api.credentialStatus(),
+      api.claudeCodeStatus().catch(() => null),
     ]);
-    set({ settings, credentials, loading: false });
+    set({ settings, claudeCode, loading: false });
 
     // The theme is mirrored into localStorage purely so the inline script in
     // index.html can apply it before first paint next launch.
@@ -88,8 +88,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  async refreshCredentials() {
-    set({ credentials: await api.credentialStatus() });
+  async refreshClaudeCode() {
+    set({ claudeCode: await api.claudeCodeStatus().catch(() => null) });
   },
 
   get(key, fallback) {

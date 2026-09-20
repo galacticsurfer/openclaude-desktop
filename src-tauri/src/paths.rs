@@ -56,6 +56,13 @@ pub fn attachments_dir() -> PathBuf {
     data_dir().join("attachments")
 }
 
+/// An empty directory the Claude Code CLI runs in when a conversation has no
+/// project working folder. Deliberately ours and empty, so an unrelated
+/// `CLAUDE.md` somewhere on disk cannot silently join the conversation.
+pub fn session_dir() -> PathBuf {
+    data_dir().join("sessions")
+}
+
 pub fn log_dir() -> PathBuf {
     state_dir().join("logs")
 }
