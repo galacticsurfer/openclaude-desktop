@@ -24,6 +24,7 @@ pub mod paths;
 pub mod provider;
 pub mod settings_defaults;
 pub mod state;
+pub mod tray;
 
 use db::Db;
 use state::AppState;
@@ -112,27 +113,40 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .manage(state.clone())
-        .setup(move |app| {
-            // The window is created hidden and revealed here, after
-            // window-state has restored its geometry — otherwise it visibly
-            // jumps from the default size to the saved one on every launch.
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.show();
+        .setup({
+            let state = state.clone();
+            move |app| {
+                // The window is created hidden and revealed here, after
+                // window-state has restored its geometry — otherwise it visibly
+                // jumps from the default size to the saved one on every launch.
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                }
+                crate::tray::install(app.handle(), &state);
+                tracing::info!(
+                    version = env!("CARGO_PKG_VERSION"),
+                    "OpenClaude Desktop started"
+                );
+                Ok(())
             }
-            tracing::info!(
-                version = env!("CARGO_PKG_VERSION"),
-                "OpenClaude Desktop started"
-            );
-            Ok(())
         })
         .on_window_event({
             let state = state.clone();
-            move |_window, event| {
-                if let tauri::WindowEvent::Destroyed = event {
+            move |window, event| match event {
+                // With a tray, closing means hide: the app keeps running and
+                // generations in flight are not interrupted.
+                tauri::WindowEvent::CloseRequested { api, .. }
+                    if crate::tray::close_to_tray(&state) =>
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                tauri::WindowEvent::Destroyed => {
                     // Let running generations finalise their rows rather than
                     // leaving them to be recovered on next launch.
                     state.cancel_all();
                 }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![

@@ -41,6 +41,11 @@ export function useStreamEvents(): void {
     register(listen<StreamEndEvent>('chat:end', (e) => store.applyEnd(e.payload)));
 
     register(
+      listen<null>('tray:new-conversation', () => {
+        void useConversationStore.getState().newConversation();
+      }),
+    );
+    register(
       listen<string>('conversation:updated', () => {
         void useConversationStore.getState().loadConversations();
       }),

@@ -21,8 +21,7 @@ export function GeneralPanel() {
           checked={settings['general.trayEnabled']}
           onChange={(v) => void set('general.trayEnabled', v)}
           label="Keep running in the system tray"
-          description="Closing the window hides it instead of quitting. Takes effect after a restart. (Tray support arrives in a later release; the preference is stored now.)"
-          disabled
+          description="Closing the window hides it instead of quitting, and a tray icon opens it again. Takes effect after a restart. Some desktops have nowhere to put a tray icon — if none appears, the window closes normally."
         />
       </Group>
 
