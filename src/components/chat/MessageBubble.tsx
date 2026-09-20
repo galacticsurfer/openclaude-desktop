@@ -19,6 +19,8 @@ interface Props {
   stream: { text: string; thinking: string } | null;
   /** Live reasoning state, present only while Claude is thinking. */
   thinkingState: { tokens: number | null } | null;
+  /** True when this is the match the find bar is currently sitting on. */
+  matched?: boolean;
   isLast: boolean;
   onRetry: () => void;
   onContinue: () => void;
@@ -36,6 +38,7 @@ export const MessageBubble = memo(function MessageBubble({
   message: m,
   stream,
   thinkingState,
+  matched = false,
   isLast,
   onRetry,
   onContinue,
@@ -66,7 +69,13 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <article
-      className={cn('group/msg message-block relative', isUser ? 'pl-8' : '')}
+      data-message-id={m.id}
+      className={cn(
+        'group/msg message-block relative',
+        isUser ? 'pl-8' : '',
+        // Offset the ring so it frames the message instead of touching it.
+        matched && 'rounded-lg outline outline-2 outline-offset-4 outline-accent',
+      )}
       aria-label={`${isUser ? 'You' : 'Claude'} at ${formatTime(m.createdAt)}`}
     >
       <header className="mb-1.5 flex items-center gap-2">

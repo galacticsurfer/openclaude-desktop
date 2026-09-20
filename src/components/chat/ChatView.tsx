@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, Info, MessageSquare, PanelLeft, Sparkles } from 'lucide-react';
 import { useConversationStore } from '@/stores/useConversationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -13,6 +13,8 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Spinner } from '@/components/ui/Spinner';
 import * as api from '@/services/api';
 import { AppError } from '@/services/ipc';
+import { FindBar } from './FindBar';
+import { findInMessages, stepMatch } from '@/lib/find';
 
 export function ChatView() {
   const {
@@ -23,6 +25,47 @@ export function ChatView() {
   const claudeCode = useSettingsStore((s) => s.claudeCode);
   const [renaming, setRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [findIndex, setFindIndex] = useState(0);
+
+  const matches = useMemo(
+    () => (findOpen ? findInMessages(messages, findQuery) : []),
+    [findOpen, messages, findQuery],
+  );
+  const activeMatch = matches[Math.min(findIndex, matches.length - 1)] ?? null;
+
+  // A new query renumbers the matches, so the cursor has to go back to the
+  // first one rather than keep an index into the previous result set.
+  useEffect(() => setFindIndex(0), [findQuery]);
+
+  // Ctrl+F is handled here rather than in the global hotkey map because it
+  // only means anything while a conversation is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && currentId !== null) {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentId]);
+
+  // Bring the current match into view. `center` rather than `nearest` so a
+  // match already just off-screen still visibly moves.
+  useEffect(() => {
+    if (!activeMatch) return;
+    document
+      .querySelector(`[data-message-id="${activeMatch.messageId}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [activeMatch]);
+
+  // Closing find, or switching conversation, must not leave a stale ring.
+  useEffect(() => {
+    setFindOpen(false);
+    setFindQuery('');
+  }, [currentId]);
 
   const streamKey = Object.values(streams)
     .map((s) => s.text.length + s.thinking.length)
@@ -174,6 +217,20 @@ export function ChatView() {
         </div>
       )}
 
+      {findOpen && (
+        <FindBar
+          query={findQuery}
+          onQuery={setFindQuery}
+          total={matches.length}
+          active={Math.min(findIndex, Math.max(matches.length - 1, 0))}
+          onStep={(d) => setFindIndex((i) => stepMatch(i, matches.length, d))}
+          onClose={() => {
+            setFindOpen(false);
+            setFindQuery('');
+          }}
+        />
+      )}
+
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto scroll-thin">
         <div className="mx-auto w-full max-w-3xl px-4 py-6">
           {loadingMessages && messages.length === 0 ? (
@@ -198,6 +255,7 @@ export function ChatView() {
                   message={m}
                   stream={streams[m.id] ?? null}
                   thinkingState={thinkingState[m.id] ?? null}
+                  matched={activeMatch?.messageId === m.id}
                   isLast={i === lastIndex}
                   onRetry={() => void retry()}
                   onContinue={() => void continueReply()}

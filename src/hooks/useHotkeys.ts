@@ -70,4 +70,7 @@ export const SHORTCUTS: Array<{ keys: string; label: string; group: string }> = 
   { keys: 'Shift+Enter', label: 'New line', group: 'Composer' },
   { keys: 'Esc', label: 'Stop generating / close overlay', group: 'Composer' },
   { keys: 'Ctrl+Shift+C', label: 'Copy last reply', group: 'Conversation' },
+  { keys: 'Ctrl+F', label: 'Find in conversation', group: 'Conversation' },
+  { keys: 'Enter', label: 'Next match, while finding', group: 'Conversation' },
+  { keys: 'Shift+Enter', label: 'Previous match, while finding', group: 'Conversation' },
 ];
