@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Generate OpenClaude Desktop application icons.
 
-Original artwork: a warm rounded tile holding a speech bubble, with a shell
-prompt (`>_`) knocked out of it — conversation plus terminal, which is what
-this client is. Deliberately unrelated to any Anthropic or Claude trademark.
+Original artwork: a warm clay tile holding an open "C" ring with a dot set in
+its mouth — the C for the client, the dot reading as both a cursor and the
+reply coming back.
+
+The palette is deliberately in the warm-terracotta family this kind of tool
+is expected to sit in, but the mark itself is our own geometry. Anthropic's
+Claude logo is a trademark and this is an unofficial client: wearing the
+official mark would imply an endorsement that does not exist, so the shape
+here is drawn from scratch and resembles no Anthropic glyph.
 
 Designed for the sizes that actually matter. A dock or task switcher shows
 this at 16-64px, so the mark is a single bold shape rather than fine detail:
@@ -20,6 +26,8 @@ import os
 
 S = 8  # supersample factor
 OUT = os.path.join(os.path.dirname(__file__), "..", "src-tauri", "icons")
+# The window UI shows the mark too, and Vite cannot import from src-tauri.
+UI_ASSET = os.path.join(os.path.dirname(__file__), "..", "src", "assets", "openclaude.png")
 
 BG_TOP = (196, 92, 54)    # clay
 BG_BOT = (224, 142, 79)   # warm amber
@@ -50,23 +58,28 @@ def render(px):
     img = gradient_tile(n)
     g = ImageDraw.Draw(img)
 
-    # Speech bubble, deliberately large so the mark survives downsampling.
-    left, top, right, bottom = n * 0.16, n * 0.19, n * 0.84, n * 0.655
-    g.rounded_rectangle([left, top, right, bottom], radius=n * 0.105, fill=INK)
-    g.polygon([(n * 0.30, bottom - n * 0.02),
-               (n * 0.30, n * 0.83),
-               (n * 0.53, bottom - n * 0.02)], fill=INK)
+    # An open ring. Thick enough that the counter survives downsampling to
+    # 16px, with a generous mouth: a narrow gap silts up and the letter reads
+    # as a solid blob.
+    import math
+    cx, cy = n * 0.5, n * 0.5
+    r = n * 0.245
+    stroke = n * 0.145
+    box = [cx - r, cy - r, cx + r, cy + r]
+    # PIL measures clockwise from 3 o'clock, so this leaves the right open.
+    start, end = 52, 308
+    g.arc(box, start=start, end=end, fill=INK, width=int(stroke))
 
-    # The prompt: a chevron and an underscore, knocked out in the tile colour.
-    cy = (top + bottom) / 2
-    cx = n * 0.36
-    stroke = n * 0.082
-    arm = n * 0.100
-    g.line([(cx, cy - arm), (cx + arm * 1.05, cy), (cx, cy + arm)],
-           fill=BG_TOP, width=int(stroke), joint="curve")
-    ux = cx + arm * 1.05 + n * 0.025
-    g.rounded_rectangle([ux, cy + arm - stroke / 2, ux + n * 0.19, cy + arm + stroke / 2],
-                        radius=stroke / 2, fill=BG_TOP)
+    # Rounded terminals — `arc` leaves square ends, which read as a cut pipe
+    # rather than a drawn letter. PIL strokes *inward* from the bounding box,
+    # so the band's centreline is at r - stroke/2; a cap centred on r instead
+    # sits proud of it and reads as a knob.
+    rc = r - stroke / 2
+    for angle in (start, end):
+        a = math.radians(angle)
+        tx, ty = cx + rc * math.cos(a), cy + rc * math.sin(a)
+        g.ellipse([tx - stroke / 2, ty - stroke / 2, tx + stroke / 2, ty + stroke / 2],
+                  fill=INK)
 
     img.putalpha(rounded_mask(n, int(n * 0.22)))
     return img.resize((px, px), Image.LANCZOS)
@@ -90,6 +103,9 @@ def main():
     render(256).save(os.path.join(OUT, "icon.ico"),
                      sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     print("  icon.ico         multi-resolution")
+
+    render(256).save(UI_ASSET)
+    print("  src/assets/openclaude.png  256x256")
 
     # Small monochrome-friendly tray glyph.
     render(64).save(os.path.join(OUT, "tray.png"))
